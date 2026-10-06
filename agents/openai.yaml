@@ -1,0 +1,4 @@
+interface:
+  display_name: "2D Character Animation"
+  short_description: "Animate sprites with connected, consistent limbs"
+  default_prompt: "Use $animate-2d-characters to animate my character with connected limbs, consistent colours, and a smooth walking loop."
