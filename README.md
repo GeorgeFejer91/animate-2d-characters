@@ -12,7 +12,7 @@ Invoke `$animate-2d-characters` with the actual character artwork, required dire
 
 ## Contents
 
-`SKILL.md` is the short entry point. References disclose painted walking, reaction/event hooks, final image analysis, optional morphing and Pets-specific delivery when needed. Scripts include a source-pixel walk renderer, movement/attachment diagnostics, material matching, a small planted-reaction player and hash-bound image-review validation.
+`SKILL.md` is the short entry point. References disclose painted walking, reaction/event hooks, final image analysis, optional morphing and Pets-specific delivery when needed. Scripts include a source-pixel walk renderer, planted-foot cycle-distance assessment, movement/attachment diagnostics, material matching, a small planted-reaction player and hash-bound image-review validation.
 
 Game reactions preserve separate meanings for idle, waving, jumping, failure, waiting, working, review and looking. Existing approved art comes first. Walking uses ground distance; prop actions and reactions use time. Reactions finish turns and preserve landing, routes, prop ownership and accepted walk pixels.
 

@@ -41,6 +41,31 @@ Keep a single latest-request slot in the runtime. Repeated input does not reset 
 
 Game atlases may use named rows such as down/right/up/left plus a turn row; ship row indices, frame times and shared pivot in a manifest. Preserve the cell's width/height ratio in the game quad instead of stretching rectangular cells into squares. For camera-facing billboards, transform the pixel-pivot offset by the billboard's full orientation and place that pivot at the actor's ground position/elevation; a vertical-only centre offset makes tilted-camera feet float or drift. Verify the actual rendered pivot through camera angles and turns, alongside blocked/paused walking and queued direction changes.
 
+## Calibrate ground speed to planted feet
+
+Distance-driven phase alone does not prove planted feet: the configured ground distance per cycle must match the exported shoe motion at the consumer's actual scale. Keep collision-resolved movement authoritative and tune the walk clock, not the character's route speed.
+
+1. In each side-view row of the **exact exported atlas**, mark the same visible sole point on each foot in at least three frames while that foot is planted. Exclude swing, toe lift, occlusion and turn cells. Follow foot identity; use unwrapped frame numbers across the loop (for example 7, 8, 9). Record `along_pixels` positive in the travel direction, negating x for left-facing art. Measure shoe length in those same exported pixels and record the atlas SHA-256 so stale annotations are detectable.
+2. Convert pixels to ground units: for a camera-facing side billboard aligned with travel, `game_units_per_pixel = billboard_height_world / frame_height_pixels / world_units_per_game_unit`. Germany Simulator uses `world_units_per_game_unit = 0.02`; include the exact per-character height passed to `atlasSprite`. For an oblique projection, measure the travel-axis projection in the running game. Do not infer forward distance from raw front/back image y; it mixes depth with foot lift. Use ground-plane projection or authoring foot-root data for those views.
+3. Run `python scripts/assess_walk_speed.py measurements.json`. For each planted contact, a fixed ground point obeys `world_root(phase) + foot_relative_root(phase) = constant`. The routine fits cycle distance `D = -cov(phase, foot_ground_offset) / var(phase)` after centering each contact separately. It reports current and best-fit shoe slide in ground units and shoe lengths. Check both feet and both side views. A negative fit, disagreement between feet/views, or visible residual slide indicates wrong marks or art that needs repair; changing the clock cannot correct that.
+4. Apply the measured **per-character** distance per complete cycle to the runtime's distance-driven frame progression. Freeze phase on blocked/paused movement and freeze the root through planted turns. Reassess after an art or billboard-scale change, then inspect multiple cycles, wraparound, starts, stops and turns in the real browser at normal speed. The numeric fit is a diagnostic, not visual acceptance.
+
+Example input (numbers are illustrative, not an accepted character calibration):
+
+```json
+{
+  "character": "example", "view": "right", "atlas_file": "example-atlas.png", "atlas_sha256": "hash-of-exact-export",
+  "frames_per_cycle": 8, "game_units_per_pixel": 0.58,
+  "current_cycle_distance": 24, "shoe_length_pixels": 22,
+  "contacts": [
+    {"foot": "left", "samples": [{"frame": 2, "along_pixels": 112}, {"frame": 3, "along_pixels": 105}, {"frame": 4, "along_pixels": 98}]},
+    {"foot": "right", "samples": [{"frame": 6, "along_pixels": 110}, {"frame": 7, "along_pixels": 103}, {"frame": 8, "along_pixels": 96}]}
+  ]
+}
+```
+
+Run `python scripts/assess_walk_speed.py --self-test` after editing this subroutine. There is no universal slide threshold; judge the residual against measured shoe size and native-size playback.
+
 Pets retain their supported layout: up/down game cycles belong in separate game assets, not extra Pet rows. The final image-analysis gate covers every delivered walk and turn frame, source comparison and transitions. After a Pets update, fetch stored bytes and compare pixels before claiming success.
 
 For a side source with spread contact feet, measure `foot_centres` and the actual cloth seam as `split_path_xy` (ordered x/y points). The helper follows internal transparency near that seam, keeps the entire shoe below each ankle, and re-centres contacts into the passing pose. Set `step_width` only after native-size inspection. Never choose exterior transparency as the leg gap or split through a boot arch. `auto_hand_mask: false` disables the rough hand heuristic when it catches trousers; provide a precise `rigid_mask` image for hands/props extending below the waist. The mask shares the source canvas and its one registration transform; exclude it from both leg layers and restore it with the upper body. Broad rectangles can capture trouser corners and create floating chips. Missing leg paint behind a prop requires a corrected source, not gap filling.
