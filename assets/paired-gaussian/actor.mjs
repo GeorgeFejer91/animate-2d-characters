@@ -1,6 +1,16 @@
 // One registered Gaussian cloud per actor. The simulation supplies all action time.
 const clamp=value=>Math.max(0,Math.min(1,Number.isFinite(value)?value:0));
-const RECORD_BYTES=24,TEXTURE_WIDTH=256,MAX_SAMPLES=20000,MAX_SEGMENTS=32;
+const RECORD_BYTES=24,TEXTURE_WIDTH=256,MAX_SAMPLES=20000,MAX_SEGMENTS=32,MAX_TRAJECTORIES=64,MAX_TRAJECTORIES_PER_SEGMENT=8;
+
+// CPU reference for inspecting an owned prop's endpoint and midpoint geometry.
+export function sampleOwnedTrajectory(trajectory,start,end,phase){
+  const u=clamp(phase),angle=trajectory.angle_radians,[ax,ay]=trajectory.pivot_start,[bx,by]=trajectory.pivot_end;
+  const rotate=(x,y,radians)=>[x*Math.cos(radians)-y*Math.sin(radians),x*Math.sin(radians)+y*Math.cos(radians)];
+  const localEnd=rotate(end[0]-bx,end[1]-by,-angle);
+  const local=[(start[0]-ax)*(1-u)+localEnd[0]*u,(start[1]-ay)*(1-u)+localEnd[1]*u];
+  const turned=rotate(...local,u*angle);
+  return[ax+(bx-ax)*u+turned[0],ay+(by-ay)*u+turned[1]];
+}
 
 export function sampleArc(manifest,state){
   if(!manifest?.arcs?.length||!manifest?.segments?.length||!state)throw new Error('Gaussian animation state unavailable');
@@ -53,6 +63,22 @@ export function validateGaussianManifest(manifest,variant='desktop'){
     }
     if(Math.abs(previous-arc.duration)>1e-5)throw new Error('Incomplete Gaussian arc');
   }
+  const trajectories=selected.trajectories??[];
+  if(!Array.isArray(trajectories)||trajectories.length>MAX_TRAJECTORIES)throw new Error('Invalid Gaussian trajectories');
+  const ranges=Array.from({length:selected.segment_count},()=>[]);
+  for(const item of trajectories){
+    const pivot=value=>Array.isArray(value)&&value.length===2&&value.every(n=>Number.isFinite(n)&&Math.abs(n)<=4);
+    if(!item||!Number.isInteger(item.segment)||item.segment<0||item.segment>=selected.segment_count||
+       !Number.isInteger(item.start_slot)||item.start_slot<0||
+       !Number.isInteger(item.end_slot)||item.end_slot<=item.start_slot||item.end_slot>selected.sample_count||
+       !pivot(item.pivot_start)||!pivot(item.pivot_end)||
+       !Number.isFinite(item.angle_radians)||Math.abs(item.angle_radians)>Math.PI)
+      throw new Error('Invalid Gaussian trajectory');
+    const group=ranges[item.segment];
+    if(group.length>=MAX_TRAJECTORIES_PER_SEGMENT||group.some(([first,last])=>item.start_slot<last&&item.end_slot>first))
+      throw new Error('Overlapping or excessive Gaussian trajectories');
+    group.push([item.start_slot,item.end_slot]);
+  }
   return selected;
 }
 
@@ -103,6 +129,17 @@ export async function createGaussianActor({THREE,owner,manifestUrl,variant='desk
   const data=unpackGaussianRecords(manifest,variant,await loadRecords(new URL(selected.file,url),selected,signal));
   signal?.throwIfAborted?.();
   const {dyno,SplatMesh}=owner,textures=[];
+  const glslNumber=value=>Number(value).toPrecision(9);
+  const trajectoryCode=segmentExpression=>(selected.trajectories??[]).map(item=>`
+    if(int(${segmentExpression})==${item.segment}&&slot>=${item.start_slot}&&slot<${item.end_slot}){
+      vec2 pivotA=vec2(${item.pivot_start.map(glslNumber).join(',')}),pivotB=vec2(${item.pivot_end.map(glslNumber).join(',')});
+      float angle=${glslNumber(item.angle_radians)},theta=u*angle;
+      vec2 localB=endpoints.zw-pivotB;
+      vec2 unturnedB=vec2(cos(angle)*localB.x+sin(angle)*localB.y,-sin(angle)*localB.x+cos(angle)*localB.y);
+      vec2 local=mix(endpoints.xy-pivotA,unturnedB,u);
+      p=mix(pivotA,pivotB,u)+vec2(cos(theta)*local.x-sin(theta)*local.y,sin(theta)*local.x+cos(theta)*local.y);
+    }
+  `).join('\n');
   const stateById=new Map(manifest.states.map(item=>[item.id,item]));
   const speechNames=Array.isArray(manifest.speech_landmarks)?manifest.speech_landmarks:[];
   const speechRadius=manifest.speech_radius_px??[data.stride*8,data.stride*5];
@@ -125,11 +162,13 @@ export async function createGaussianActor({THREE,owner,manifestUrl,variant='desk
       statements:({inputs:i,outputs:o})=>dyno.unindentLines(`
         ${o.gsplat}=${i.gsplat};
         ivec2 cell=ivec2(${i.gsplat}.center.xy+vec2(.1));
+        int slot=cell.x+cell.y*${TEXTURE_WIDTH};
         cell.y+=int(${i.segment})*${data.rows};
         vec4 endpoints=texelFetch(${i.xy},cell,0);
         vec4 paintA=texelFetch(${i.start},cell,0),paintB=texelFetch(${i.end},cell,0);
         float u=clamp(${i.blend},0.,1.);
         vec2 p=mix(endpoints.xy,endpoints.zw,u);
+        ${trajectoryCode(i.segment)}
         vec2 face=(p-${i.mouthCenter})/vec2(${speechRadius[0]/manifest.canvas_xy[1]},${speechRadius[1]/manifest.canvas_xy[1]});
         float lip=exp(-dot(face,face)*3.5)*${i.mouth};
         p.y-=lip*${speechAmplitude};
@@ -186,7 +225,7 @@ export async function createGaussianActor({THREE,owner,manifestUrl,variant='desk
           return api.inspect().visible;
         }catch(error){failure=error.message||String(error);mesh.visible=false;return false}
       },
-      inspect(){const status=owner.inspect();return{ready:!disposed&&!failure&&status.ready,visible:!disposed&&!failure&&mesh.visible&&status.ready&&readyAfterSort!==null&&status.completedUpdates>=readyAfterSort&&status.activeSplats>0,pending:status.pending,failure:failure||status.failure,variant,id:manifest.id,count:data.count,segmentCount:data.segments,bytes:selected.decoded_bytes,segment:segment.value,blend:blend.value}},
+      inspect(){const status=owner.inspect();return{ready:!disposed&&!failure&&status.ready,visible:!disposed&&!failure&&mesh.visible&&status.ready&&readyAfterSort!==null&&status.completedUpdates>=readyAfterSort&&status.activeSplats>0,pending:status.pending,failure:failure||status.failure,variant,id:manifest.id,count:data.count,segmentCount:data.segments,bytes:selected.decoded_bytes,segment:segment.value,blend:blend.value,trajectoryCount:selected.trajectories?.length??0,activeTrajectories:selected.trajectories?.filter(item=>item.segment===segment.value)??[]}},
       dispose(){if(disposed)return;disposed=true;signal?.removeEventListener?.('abort',onAbort);owner.retire(mesh,releaseTextures)},
     };
     signal?.addEventListener?.('abort',onAbort,{once:true});

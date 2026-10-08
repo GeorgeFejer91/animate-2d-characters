@@ -32,9 +32,31 @@ must not restart body motion.
 The JSON spec has `id`, `canvas_xy`, `variants` (names to sampling strides),
 `states`, and `arcs`. Each state names its PNG and **arbitrary named XY
 landmarks**. Adjacent states need common landmark names. Optional `regions`
-are named part polygons in image pixels; overlapping regions use the last
-declaration, and the uncovered region is `body`. Draw these polygons around
+are named part polygons in image pixels; ordinary overlapping regions use the
+last declaration, and the uncovered region is `body`. Draw these polygons around
 parts with a stable identity, especially face, hands, clothing panels and props.
+For a rigid **held object** that rotates, give its named region `pivot_xy` and
+`orientation_landmarks` in both adjacent states. The two landmark names identify
+the same directed object axis in each state. The pivot and landmarks use the
+registered image-pixel coordinates; the curved polygons must not overlap each
+other. For example:
+
+```json
+{
+  "landmarks": {"grip": [39, 29], "tip": [51, 34]},
+  "regions": [{"part": "held_baton", "polygon": [[38, 23], [56, 27], [56, 41], [38, 34]],
+               "pivot_xy": [39, 29], "orientation_landmarks": ["grip", "tip"]}]
+}
+```
+
+The builder derives the shortest signed turn in the Gaussian's upward-Y frame.
+At an exact half-turn, direction is ambiguous; add a compatible bridge key to
+specify the desired route. Keep the directed axis tied to the **same physical
+object points** in every key. If a hand changes grip, defining the axis by
+"near hand" and "far edge" can falsely encode a 180° object turn. Use stable
+sheet-corner identities and an object-centered pivot, or add a bridge for the
+real occlusion and rotation. It refuses one-sided or degenerate controls and
+overlapping sampled curved regions. Other regions keep the prior linear path.
 There is no universal 16-point human skeleton. Optional `crop_xywh` selects a
 registered source cell. Optional `speech_landmarks` lists at most two named
 points, with `speech_radius_px` and `speech_amplitude_px`; omit them if no
@@ -60,6 +82,18 @@ endpoint samples prove texture continuity between keys: inspect the midpoint,
 face, cloth, hand and prop at native rendered size on light/dark backgrounds.
 If material crosses itself, changes occlusion or lacks a corresponding limb,
 author a bridge key or layer ownership instead of tuning the matcher blindly.
+
+The builder groups each owned part into a contiguous slot range and emits
+optional `variants.<name>.trajectories` entries with `segment`, exclusive
+`start_slot`/`end_slot`, normalized `pivot_start`/`pivot_end`, and
+`angle_radians`. Up to eight disjoint entries per segment and 64 per variant
+are allowed. The shader rotates only those slots, using pivot translation and
+local-frame interpolation so the painted XY endpoints remain exact. The 24-byte
+record layout is unchanged. Specs without curved ownership emit no trajectory
+metadata and retain linear interpolation. `sampleOwnedTrajectory` is a CPU
+reference for endpoint/midpoint checks; `actor.inspect()` exposes the active
+segment's entries. The fixture's red baton and direct `swing` arc demonstrate
+extent preservation, not valid human anatomy or production-ready motion.
 
 ## Host the cloud within the existing render and simulation loops
 
