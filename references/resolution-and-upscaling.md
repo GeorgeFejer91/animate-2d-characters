@@ -19,6 +19,13 @@ Screen width alone cannot select the correct close-up asset. Check high-DPR
 mobile screens and disclose any remaining enlargement. Do not call emulation a
 tested physical device.
 
+Verify the actual loaded texture, cell grid and detail state when measuring the
+consumer. Atlas height alone is ambiguous: the office trial's compact and close
+atlases both had 3328-pixel heights. A dimension-only wait incorrectly measured
+the compact fallback as close art. Wait for the selected variant and record its
+URL/hash alongside projected size. Even the correct larger variant may still be
+enlarged in a very close high-DPR view; report that ratio explicitly.
+
 Before generating hundreds of frames, inspect the original plus contact,
 passing, opposite-contact and closure poses at **native intended close-up
 resolution** in every direction, enlarged on light/dark backgrounds. Reduced
