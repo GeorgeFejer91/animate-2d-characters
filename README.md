@@ -16,6 +16,8 @@ Invoke `$animate-2d-characters` with the actual character artwork, required dire
 
 `references/upstream-methods.md` records source-pinned methods adopted or declined from twelve inspected animation projects, with Synfig's companion docs. It documents provenance and limits; the owning references above remain the working instructions.
 
+`references/gaussian-transitions.md` covers painted 2D-to-3D Gaussian reveals and procedural volumetric tunnels: exact source registration, detail-aware sampling, GPU deformation, shared scene depth, cancellation and safe sort teardown. It draws on a shipped Spark 2.3.1 / Three.js r186 scene and distinguishes a bounded painted sculpture from a reconstructed or rigged character. The optional technique adds no dependency to ordinary sprite workflows.
+
 Game reactions preserve separate meanings for idle, waving, jumping, failure, waiting, working, review and looking. Existing approved art comes first. Walking uses ground distance; prop actions and reactions use time. Reactions finish turns and preserve landing, routes, prop ownership and accepted walk pixels.
 
 Ordinary game animation works without the Pets plugin. ChatGPT Pets uploads still require the installed Pets skill and its authoritative tools. Do not infer that a successful numerical check certifies visual continuity.

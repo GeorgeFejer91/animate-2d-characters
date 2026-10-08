@@ -1,6 +1,6 @@
 ---
 name: animate-2d-characters
-description: Create or repair 2D character movement, interaction poses, and narrative event-driven animation while preserving reference proportions, painted appearance, connected anatomy, and clean transparency.
+description: Create or repair painted 2D character movement, interaction poses, event-driven animation, and source-registered 2D-to-3D Gaussian reveals while preserving proportions, connected anatomy, and transparency.
 ---
 
 # Animate 2D characters
@@ -10,6 +10,8 @@ Use one workflow and one visual acceptance record at two checkpoints. Connected 
 Before choosing canvas/frame sizes or upscaling, read [resolution and upscaling](references/resolution-and-upscaling.md). Compare actual source detail, export cells and displayed physical pixels (CSS × DPR); inspect extreme poses at native close-up resolution before expanding the sequence. Clean source mattes first, preserve family scale and alpha, and prefer rebaking higher-resolution originals over enlarging a lossy atlas. `scripts/assess_resolution.py` reports sampling ratios, aspect, gutters and texture memory; it does not certify visual quality.
 
 For a game walk, run the [planted-foot speed assessment](references/painted-walking.md#calibrate-ground-speed-to-planted-feet) on the exact exported side-view frames and actual billboard scale before setting the distance per gait cycle. Inspect remaining shoe slide in the running game; a distance-driven clock alone does not prove foot planting.
+
+For a sprite gaining depth, a small volumetric turn, or an accompanying Gaussian tunnel, read [Gaussian transitions](references/gaussian-transitions.md). It covers registered painted volumes, progressive depth reveal, shared rendering and asynchronous cleanup. Gaussian rendering alone does not supply missing views, limb motion or a character rig; retain the approved sprite and existing event owner.
 
 1. **Lock the character.** Inspect the actual asset and approved other states at native size. Record facing, timing, canvas, baseline and prop hand. For a new view or action, identify its approved direction anchor and distinguish anatomical left/right from screen left/right; [methods](references/methods.md) covers source and extraction diagnosis. Compare views at a shared figure height; lock shorts coverage, exposed skin, limb widths, socks and footwear. Rejected movement frames are not a new design.
 2. **Prove the source poses.** Reuse intact artwork or generate only missing views/key poses with the available image-generation tool. Compare them with the locked reference before animation. Reject elongated legs, generic tube shading, smaller shoes, changed clothing or props. For walking, prove opposite contacts and passing poses before expanding the loop.

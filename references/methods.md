@@ -17,3 +17,5 @@ When retargeting a genuinely new motion source, record a small source-joint to c
 Unknown generated spacing requires complete pose extraction, not guessed grid slices. Use one family scale/origin/baseline and preserve airborne displacement and handed props. `audit_sequence.py` is an optional clipping/geometry diagnostic. `harmonize_material.py` matches explicitly masked materials while retaining shading; never recolour clothing as skin.
 
 Use [constrained morphing](morphing.md) only for accepted endpoints with compatible facing, topology and visibility. Prefer direct rig in-betweens when available. Crossfading wrong anatomy does not repair it.
+
+**Painted sprite becoming a volume:** [Gaussian transitions](gaussian-transitions.md) describes a registered, bounded relief for brief depth reveals and small turns. Use genuine multiview geometry or an articulated asset when the requested action exposes substantial unseen surfaces or moves limbs independently. Choose the motion representation before choosing the splat renderer.
