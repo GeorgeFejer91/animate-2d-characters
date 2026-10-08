@@ -48,6 +48,9 @@ or enclosed hand/prop gaps. Sample the actual backdrop, constrain cleanup to
 verified regions and protect similarly coloured clothing/props. A transparent
 master should remain clean when re-imported. Inspect alpha on light/dark
 backgrounds after resizing and encoding, with a gutter around each atlas cell.
+Zero matches from one hue threshold do not establish a clean matte: mixed edge
+spill can fall outside that threshold. Inspect the original at native scale and
+repair the smallest observed region before propagating it into more frames.
 
 ## Diagnostic helper
 
