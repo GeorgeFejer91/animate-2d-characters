@@ -12,17 +12,20 @@ Write one small beat card for each triggered interaction:
 | Owner and priority | Which character owns the beat; which routine actions pause; which higher-priority event can preempt it. |
 | Path | Start, approach/turn points, stopping distance, obstacle rule, and return route. The body must travel in world space. |
 | Performance | Ordered readable verbs such as walk → settle → look → stamp → speak → hold → recover; duration or completion event for each. |
+| Clock and contact | Which clock advances each verb, where a one-shot starts/holds/ends, and which sole or prop contact stays fixed. |
 | Props and speech | Which hand keeps the object; speaker, exact visible line, lip/head/gesture cues, voice-start and fallback behavior. |
 | Scene cues | Lighting, sound, camera and bounded color-valence target, with independent mix controls where the game has them. |
 | Exit | Normal completion, interruption, replay, voice failure, and level close all release pose, sound, camera, and gameplay locks. |
 
 The beat card is an authoring contract, not a new engine framework. Reuse the game's existing entity, route, dialogue, audio, and render state. Keep narrative text in its story authority and route/action state in simulation code. The renderer reads state and owns only its visible interpolation. A Pet-like idle repertoire can provide look, fidget, handle-prop, flinch, and settle actions, but do not import a Pet atlas format or upload flow into another game.
 
+For a camera-sensitive beat, block a few rough or existing-sprite snapshots at the actual game view before creating missing poses: approach, planted contact, line/prop hold and release. This checks placement and sightline without adding a separate animatic pipeline. Mark the physical prop hand and its screen-side position in each facing; the two labels can differ after a turn.
+
 ## Movement lanes
 
 - **Root/path:** World position and facing follow the planned path; acceleration, arrival, and obstacle clearance are simulation-owned. A sprite walk row never substitutes for translation.
 - **Feet and pelvis:** Advance gait phase by distance traveled, with alternating planted and swing feet and a visible side stride. Hold or settle feet at the destination; do not slide through a paper or speech pose.
-- **Torso, hands, props:** Keep a continuous shoulder-to-hand silhouette and the same prop hand. Separate work, gesture, look, and flinch keys only when their action reads distinctly at game size. Approve the action keys before filling in connected inbetweens.
+- **Torso, hands, props:** Keep a continuous shoulder-to-hand silhouette and the same prop hand. Mark grip/contact, rigid attachments, deforming paint and near/far draw order at action extremes. Separate work, gesture, look, and flinch keys only when their action reads distinctly at game size. Approve the action keys before filling in connected inbetweens.
 - **Head, gaze, mouth:** Aim toward the target and return smoothly. While a character owns speech, animate a modest mouth cycle driven by actual speech boundaries where available, or a readable timed fallback. End the mouth cycle when the line ends or is cancelled.
 - **Scene response:** Lighting, sound, camera, and subtle paint tint follow the active beat or dialogue owner. Keep the actor inside the actual camera sightline before a spotlight or close-up begins; verify the projected focus in the playable scene. Ease the valence target and restore the source color after ownership ends; avoid per-frame random color changes.
 

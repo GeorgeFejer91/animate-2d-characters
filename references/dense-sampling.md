@@ -42,8 +42,11 @@ snapshot, not a zero-duration playback frame. The consumer holds that endpoint o
 enters its next state when the total duration expires.
 
 Ship explicit frame counts, state offsets, atlas columns/rows, cell sizes and
-timing. Runtime indexing must work for the dense atlas, fallback and close-up
-variants. Preserve the same normalized phase when switching resolution. Verify
+timing, direction, loop/one-shot intent and ground pivot. For each shipped atlas
+variant, compare its encoded export/hash and clip mapping with what the consumer
+actually loads; a small existing build report or manifest is enough. Runtime
+indexing must work for the dense atlas, fallback and close-up variants. Preserve
+the same normalized phase when switching resolution. Verify
 the first, every intermediate, last and wraparound sample in the actual renderer,
 including load failure and mobile variants.
 
@@ -60,6 +63,15 @@ including load failure and mobile variants.
    shrinking the motion, freezing frames or blurring the art can improve a number
    while making the result worse. Inspect every exact output as required by
    [final frame analysis](final-frame-analysis.md).
+   `scripts/audit_sequence.py` reports whole-canvas change and change over pixels
+   visible in either frame (alpha > 0), using premultiplied RGBA in encoded sRGB.
+   It also reports duration-normalized change for the
+   outgoing frame, exact visible hashes (ignoring RGB at zero alpha), distinct
+   frames and repeated endpoints. Compare only equal duration, scale, registration
+   and phase; inspect its largest reported steps, including a cyclic seam. These
+   are uncalibrated ranking signals, not perceptual scores or pass thresholds:
+   lossy encoding can make near-identical poses hash differently, and intentional
+   contact/hold timing can make a large change correct.
 4. Pack to a measured texture budget. Estimate decoded RGBA memory as width ×
    height × 4; compressed file size alone is misleading. Keep source detail when
    choosing count/layout, select close-up variants from projected size and DPR,

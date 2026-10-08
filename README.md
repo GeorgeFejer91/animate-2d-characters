@@ -14,6 +14,8 @@ Invoke `$animate-2d-characters` with the actual character artwork, required dire
 
 `SKILL.md` is the short entry point. References disclose painted walking, reaction/event hooks, final image analysis, optional morphing and Pets-specific delivery when needed. Scripts include a source-pixel walk renderer, planted-foot cycle-distance assessment, multi-key/cyclic mesh interpolation with preserved duration, movement/attachment diagnostics, material matching, a small planted-reaction player and hash-bound image-review validation.
 
+`references/upstream-methods.md` records source-pinned methods adopted or declined from twelve inspected animation projects, with Synfig's companion docs. It documents provenance and limits; the owning references above remain the working instructions.
+
 Game reactions preserve separate meanings for idle, waving, jumping, failure, waiting, working, review and looking. Existing approved art comes first. Walking uses ground distance; prop actions and reactions use time. Reactions finish turns and preserve landing, routes, prop ownership and accepted walk pixels.
 
 Ordinary game animation works without the Pets plugin. ChatGPT Pets uploads still require the installed Pets skill and its authoritative tools. Do not infer that a successful numerical check certifies visual continuity.

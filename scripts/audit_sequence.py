@@ -16,13 +16,25 @@ def audit(manifest, base):
     padding=int(manifest.get('padding',1));maximum=manifest.get('max_components')
     if not 1<=threshold<=255 or minimum<1 or padding<0 or (maximum is not None and int(maximum)<1):
         raise ValueError('Invalid alpha/component/padding policy')
-    errors=[]; warnings=[]; records=[]; images=[]; size=None
+    errors=[]; warnings=[]; records=[]; steps=[]; size=None; first=None; previous=None
+    visible_hashes=[]
+    def compare(a,b,left,right):
+        difference=np.abs(left-right)
+        support=(left[:,:,3]>0)|(right[:,:,3]>0)
+        visible=float(difference[support].mean()) if support.any() else 0.
+        duration=entries[a].get('duration_ms')
+        valid_duration=isinstance(duration,(int,float)) and not isinstance(duration,bool) and math.isfinite(duration) and duration>0
+        return {'from':a,'to':b,'mean_difference':float(difference.mean()),
+                'visible_mean_difference':visible,'support_pixels':int(support.sum()),
+                'duration_ms':duration,'visible_change_per_second':visible*1000/duration if valid_duration else None}
     for i,e in enumerate(entries):
-        path=base/e['file'];rgba=np.array(Image.open(path).convert('RGBA'));h,w=rgba.shape[:2]
+        path=base/e['file']
+        with Image.open(path) as image:rgba=np.array(image.convert('RGBA'))
+        h,w=rgba.shape[:2]
         if size is None:size=(w,h)
         if size != (w,h):raise ValueError('Every frame must share one canvas')
         duration=e.get('duration_ms')
-        if not isinstance(duration,(int,float)) or not math.isfinite(duration) or duration<=0:
+        if isinstance(duration,bool) or not isinstance(duration,(int,float)) or not math.isfinite(duration) or duration<=0:
             errors.append(f'Frame {i}: positive finite duration_ms required')
         visible=rgba[:,:,3]>=threshold;ys,xs=np.nonzero(visible)
         bounds=[int(xs.min()),int(ys.min()),int(xs.max())+1,int(ys.max())+1] if len(xs) else None
@@ -75,19 +87,31 @@ def audit(manifest, base):
             distance=math.dist(joints[a],joints[b]);ok=lo<=distance<=hi
             if not ok:errors.append(f'Frame {i}: {a}-{b} length {distance:.3f} outside {lo}..{hi}')
             bones.append({'a':a,'b':b,'length':distance,'ok':ok})
+        # Hidden RGB must not make identical visible poses look distinct.
+        rgba[rgba[:,:,3]==0,:3]=0
+        visible_hash=hashlib.sha256(rgba.tobytes()).hexdigest();visible_hashes.append(visible_hash)
         records.append({'frame':i,'file':e['file'],'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),
-                        'duration_ms':duration,'bounds':bounds,'component_areas':areas,'bones':bones,'attachments':attachments})
-        # Premultiplied RGB+alpha comparison ignores meaningless hidden RGB.
-        z=rgba.astype(float)/255;z[:,:,:3]*=z[:,:,3,None];images.append(z)
-    pairs=list(zip(range(len(images)-1),range(1,len(images))))
-    if manifest.get('cyclic',True) and len(images)>1:pairs.append((len(images)-1,0))
-    steps=[{'from':a,'to':b,'mean_difference':float(np.abs(images[a]-images[b]).mean())} for a,b in pairs]
-    if len(steps)>2:
-        median=float(np.median([z['mean_difference'] for z in steps]))
-        for z in steps:
-            if z['mean_difference']>max(.025,median*3):warnings.append(f"Large step {z['from']} -> {z['to']}; inspect for a visible pop")
-    if len(images)>1 and all(z['mean_difference']==0 for z in steps):warnings.append('All frames identical; motion not demonstrated')
+                        'visible_rgba_sha256':visible_hash,'duration_ms':duration,'bounds':bounds,
+                        'visible_pixels':int(visible.sum()),'alpha_mass':float(rgba[:,:,3].sum()/255),
+                        'component_areas':areas,'bones':bones,'attachments':attachments})
+        # Compare adjacent frames as a stream; retain only the first and previous.
+        # Encoded sRGB premultiplied deltas are diagnostics, not perceptual scores.
+        z=rgba.astype(np.float32)/255;z[:,:,:3]*=z[:,:,3,None]
+        if previous is not None:steps.append(compare(i-1,i,previous,z))
+        else:first=z
+        previous=z
+    cyclic=manifest.get('cyclic',True)
+    if cyclic and len(entries)>1:steps.append(compare(len(entries)-1,0,previous,first))
+    # Rank inspection candidates without treating an uncalibrated delta as a
+    # quality threshold. Holds, contacts and unequal dwell may be intentional.
+    largest_steps=sorted(steps,key=lambda z:z['visible_mean_difference'],reverse=True)[:3]
+    if len(entries)>1 and len(set(visible_hashes))==1:warnings.append('All visible frames identical; motion not demonstrated')
+    repeated_endpoint=len(entries)>1 and visible_hashes[0]==visible_hashes[-1]
+    if cyclic and repeated_endpoint:warnings.append('Loop repeats its first visible pose at the end; check whether the extra hold is intentional')
     return {'ok':not errors,'errors':errors,'warnings':warnings,'canvas':size,'frames':records,'steps':steps,
+            'distinct_visible_frames':len(set(visible_hashes)),'repeated_endpoint':repeated_endpoint,
+            'largest_visible_steps':largest_steps,
+            'metric':'encoded-sRGB premultiplied RGBA L1; visible mean uses the pair support union; rates use outgoing duration',
             'anatomy_assessed':'annotated bone/attachment constraints only' if manifest.get('bones') or manifest.get('attachments') else 'not assessed; no bone/attachment constraints supplied',
             'visual_review_required':True}
 
