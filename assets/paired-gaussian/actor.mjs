@@ -1,4 +1,5 @@
 // One registered Gaussian cloud per actor. The simulation supplies all action time.
+import {createPaintedAnchor} from './anchor.mjs';
 const clamp=value=>Math.max(0,Math.min(1,Number.isFinite(value)?value:0));
 const RECORD_BYTES=24,TEXTURE_WIDTH=256,MAX_SAMPLES=20000,MAX_SEGMENTS=32,MAX_TRAJECTORIES=64,MAX_TRAJECTORIES_PER_SEGMENT=8;
 
@@ -120,7 +121,8 @@ async function loadRecords(url,selected,signal){
   return decoded.buffer;
 }
 
-export async function createGaussianActor({THREE,owner,manifestUrl,variant='desktop',signal}){
+export async function createGaussianActor({THREE,owner,manifestUrl,variant='desktop',signal,queueLoad,anchorPaint=true}){
+  signal?.throwIfAborted?.();
   if(!owner?.attach||!owner?.retire||!owner?.SplatMesh||!owner?.dyno)throw new Error('Gaussian owner unavailable');
   const url=new URL(manifestUrl,import.meta.url);
   const response=await fetch(url,{signal});
@@ -145,7 +147,7 @@ export async function createGaussianActor({THREE,owner,manifestUrl,variant='desk
   const speechRadius=manifest.speech_radius_px??[data.stride*8,data.stride*5];
   const speechAmplitude=(manifest.speech_amplitude_px??2)/manifest.canvas_xy[1];
   if(speechNames.length>2||speechNames.some(name=>typeof name!=='string')||speechRadius.length!==2||speechRadius.some(n=>!(n>0))||!(speechAmplitude>=0&&speechAmplitude<.02))throw new Error('Invalid speech landmark settings');
-  let mesh=null,attached=false,disposed=false,failure='',readyAfterSort=null,lastKey='';
+  let mesh=null,paint=null,attached=false,disposed=false,failure='',readyAfterSort=null,lastKey='';
   const releaseTextures=()=>{for(const texture of textures)texture.dispose()};
   try{
     for(const [array,type] of [[data.xy,THREE.FloatType],[data.start,THREE.UnsignedByteType],[data.end,THREE.UnsignedByteType]]){
@@ -155,9 +157,9 @@ export async function createGaussianActor({THREE,owner,manifestUrl,variant='desk
       texture.generateMipmaps=false;texture.flipY=false;texture.needsUpdate=true;
       textures.push(texture);
     }
-    const segment=dyno.dynoFloat(0),blend=dyno.dynoFloat(0),mouth=dyno.dynoFloat(0),mouthCenter=dyno.dynoVec2(new THREE.Vector2());
+    const segment=dyno.dynoFloat(0),blend=dyno.dynoFloat(0),strength=dyno.dynoFloat(1),mouth=dyno.dynoFloat(0),mouthCenter=dyno.dynoVec2(new THREE.Vector2()),tint=dyno.dynoVec3(new THREE.Vector3(1,1,1)),breath=dyno.dynoFloat(0);
     const modifier=dyno.dynoBlock({gsplat:dyno.Gsplat},{gsplat:dyno.Gsplat},({gsplat})=>({gsplat:new dyno.Dyno({
-      inTypes:{gsplat:dyno.Gsplat,segment:'float',blend:'float',mouth:'float',mouthCenter:'vec2',xy:'sampler2D',start:'sampler2D',end:'sampler2D'},
+      inTypes:{gsplat:dyno.Gsplat,segment:'float',blend:'float',strength:'float',mouth:'float',mouthCenter:'vec2',tint:'vec3',breath:'float',xy:'sampler2D',start:'sampler2D',end:'sampler2D'},
       outTypes:{gsplat:dyno.Gsplat},
       statements:({inputs:i,outputs:o})=>dyno.unindentLines(`
         ${o.gsplat}=${i.gsplat};
@@ -178,11 +180,15 @@ export async function createGaussianActor({THREE,owner,manifestUrl,variant='desk
         float alpha=mix(paintA.a,paintB.a,u);
         vec3 premul=mix(linearA*paintA.a,linearB*paintB.a,u);
         vec3 linear=alpha>1e-5?premul/alpha:vec3(0.);
+        linear*=${i.tint};
+        float lightness=dot(linear,vec3(.2126,.7152,.0722));
+        linear=mix(vec3(lightness),linear,1.085+.055*${i.breath})*(1.015+.035*${i.breath});
         vec3 srgb=mix(linear*12.92,1.055*pow(max(linear,vec3(0.)),vec3(1./2.4))-.055,step(vec3(.0031308),linear));
         // Spark decodes Gsplat RGB as sRGB during rendering.
         ${o.gsplat}.rgba=vec4(srgb,alpha);
+        ${o.gsplat}.rgba.a*=${i.strength};
       `),
-    }).apply({gsplat,segment,blend,mouth,mouthCenter,xy:dyno.dynoSampler2D(textures[0]),start:dyno.dynoSampler2D(textures[1]),end:dyno.dynoSampler2D(textures[2])}).gsplat}));
+    }).apply({gsplat,segment,blend,strength,mouth,mouthCenter,tint,breath,xy:dyno.dynoSampler2D(textures[0]),start:dyno.dynoSampler2D(textures[1]),end:dyno.dynoSampler2D(textures[2])}).gsplat}));
     mesh=new SplatMesh({maxSplats:data.count,lod:false,enableLod:false,editable:false,raycastable:false,
       objectModifier:modifier,constructSplats:splats=>{
         const center=new THREE.Vector3(),scale=new THREE.Vector3(data.stride/manifest.canvas_xy[1]*.65,data.stride/manifest.canvas_xy[1]*.65,.0008),rotation=new THREE.Quaternion(),white=new THREE.Color(1,1,1);
@@ -194,17 +200,22 @@ export async function createGaussianActor({THREE,owner,manifestUrl,variant='desk
     await mesh.initialized;signal?.throwIfAborted?.();
     mesh.visible=false;owner.attach(mesh);attached=true;
     mesh.updateGenerator?.();
+    if(anchorPaint)paint=await createPaintedAnchor({THREE,owner,manifest,manifestUrl:url,signal,queueLoad});
     const onAbort=()=>{api.dispose()};
     const api={
       update(state,sourceMesh,{visible=true,reducedMotion=false}={}){
-        if(disposed||failure||!owner.inspect().ready||!state||!sourceMesh){if(mesh)mesh.visible=false;return false}
+        if(disposed||failure||!owner.inspect().ready||!state||!sourceMesh){if(mesh)mesh.visible=false;paint?.update(null,sourceMesh,false);return false}
         try{
-          if(!visible){mesh.visible=false;readyAfterSort=null;return false}
+          if(!visible){mesh.visible=false;paint?.update(null,sourceMesh,false);readyAfterSort=null;return false}
           const sample=sampleArc(manifest,state),height=sourceMesh.geometry?.parameters?.height;
           if(!(height>0)||!(sourceMesh.scale?.y>0))throw new Error('Gaussian source height unavailable');
-          const key=[sample.segment,sample.u,state.speaking,state.mouthFrame,reducedMotion,sourceMesh.position.x,sourceMesh.position.y,sourceMesh.position.z,sourceMesh.scale.y,sourceMesh.rotation.x,sourceMesh.rotation.y,sourceMesh.rotation.z].join(':');
+          const anchorOpacity=paint?.update(sample,sourceMesh,true,{speaking:state.speaking,mouthFrame:state.mouthFrame,reducedMotion})??0;
+          strength.value=1-anchorOpacity;
+          const color=sourceMesh.material?.color,paintBreath=sourceMesh.material?.userData?.breath?.value??0;
+          const key=[sample.segment,sample.u,anchorOpacity,state.speaking,state.mouthFrame,reducedMotion,sourceMesh.position.x,sourceMesh.position.y,sourceMesh.position.z,sourceMesh.scale.y,sourceMesh.rotation.x,sourceMesh.rotation.y,sourceMesh.rotation.z,color?.r,color?.g,color?.b,paintBreath].join(':');
           if(key!==lastKey){
             segment.value=sample.segment;blend.value=sample.u;
+            tint.value.set(color?.r??1,color?.g??1,color?.b??1);breath.value=paintBreath;
             const pair=manifest.segments[sample.segment];
             const point=(id,name)=>stateById.get(id)?.landmarks?.[name];
             const source=speechNames.map(name=>point(pair.from,name)),target=speechNames.map(name=>point(pair.to,name));
@@ -220,18 +231,20 @@ export async function createGaussianActor({THREE,owner,manifestUrl,variant='desk
             mesh.scale.setScalar(height*sourceMesh.scale.y);
             mesh.needsUpdate=true;lastKey=key;
           }
-          mesh.visible=true;
+          mesh.visible=strength.value>.001;
           if(readyAfterSort===null)readyAfterSort=owner.inspect().startedUpdates+1;
           return api.inspect().visible;
-        }catch(error){failure=error.message||String(error);mesh.visible=false;return false}
+        }catch(error){failure=error.message||String(error);mesh.visible=false;paint?.update(null,sourceMesh,false);return false}
       },
-      inspect(){const status=owner.inspect();return{ready:!disposed&&!failure&&status.ready,visible:!disposed&&!failure&&mesh.visible&&status.ready&&readyAfterSort!==null&&status.completedUpdates>=readyAfterSort&&status.activeSplats>0,pending:status.pending,failure:failure||status.failure,variant,id:manifest.id,count:data.count,segmentCount:data.segments,bytes:selected.decoded_bytes,segment:segment.value,blend:blend.value,trajectoryCount:selected.trajectories?.length??0,activeTrajectories:selected.trajectories?.filter(item=>item.segment===segment.value)??[]}},
-      dispose(){if(disposed)return;disposed=true;signal?.removeEventListener?.('abort',onAbort);owner.retire(mesh,releaseTextures)},
+      inspect(){const status=owner.inspect(),anchor=paint?.inspect()??null;return{ready:!disposed&&!failure&&status.ready,visible:!disposed&&!failure&&status.ready&&(anchor?.visible||mesh.visible&&readyAfterSort!==null&&status.completedUpdates>=readyAfterSort&&status.activeSplats>0),pending:status.pending,failure:failure||status.failure,variant,id:manifest.id,count:data.count,segmentCount:data.segments,bytes:selected.decoded_bytes,segment:segment.value,blend:blend.value,anchor,trajectoryCount:selected.trajectories?.length??0,activeTrajectories:selected.trajectories?.filter(item=>item.segment===segment.value)??[]}},
+      settle:async()=>{await paint?.settle()},
+      dispose(){if(disposed)return;disposed=true;signal?.removeEventListener?.('abort',onAbort);paint?.dispose();owner.retire(mesh,releaseTextures)},
     };
     signal?.addEventListener?.('abort',onAbort,{once:true});
     if(signal?.aborted)api.dispose();
     return api;
   }catch(error){
+    paint?.dispose();
     if(mesh){if(attached)owner.retire(mesh,releaseTextures);else{mesh.dispose?.();releaseTextures()}}
     else releaseTextures();
     throw error;

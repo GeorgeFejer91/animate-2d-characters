@@ -344,6 +344,36 @@
       ]
     }
   },
+  "anchors": {
+    "frames": {
+      "work": {
+        "file": "synthetic-action-anchor-0.webp",
+        "sha256": "24425a205a3d36a5f6cf6c3fb95cfbe69121a249731693aee800c0fbb30fe160",
+        "bytes": 166,
+        "width": 64,
+        "height": 64,
+        "rgba_sha256": "d10526453385c70e9595bbc4133f5c7b496914c3f25be8acb1bbf426abaabc20"
+      },
+      "bridge": {
+        "file": "synthetic-action-anchor-1.webp",
+        "sha256": "82b59e0a61bd29817e3f72cca71707f99381e09c501dff2f994967900239b201",
+        "bytes": 180,
+        "width": 64,
+        "height": 64,
+        "rgba_sha256": "7453e9a081ce405b1e6e24a51484e01cf1fc5a11e8586e3c047f25ec350696fa"
+      },
+      "gesture": {
+        "file": "synthetic-action-anchor-2.webp",
+        "sha256": "5c670255a51f6ff3e26fae8cc2b6f9b6945945739c40fcfa7a4294f751704abf",
+        "bytes": 166,
+        "width": 64,
+        "height": 64,
+        "rgba_sha256": "9bf48f729cd655156289d84d6e8ff5f00c07b3780383cc01cce592cec87c896d"
+      }
+    },
+    "maximum_resident": 3,
+    "fade_seconds": 0.09
+  },
   "speech_landmarks": [
     "face"
   ],

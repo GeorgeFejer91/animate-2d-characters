@@ -241,6 +241,20 @@ def build(spec_path, output):
     if not 1 <= len(segments) <= 32:
         raise ValueError("Expected 1..32 segments")
     output.mkdir(parents=True, exist_ok=True)
+    anchor_frames = {}
+    for index, state in enumerate(states):
+        # Runtime keys use the registered canvas, including any source-sheet
+        # crop. Alpha-zero RGB must not carry hidden matte into linear filtering.
+        rgba = np.array(images[state["id"]], copy=True)
+        rgba[rgba[:, :, 3] == 0, :3] = 0
+        anchor_file = f"{ident}-anchor-{index}.webp"
+        anchor_path = output / anchor_file
+        Image.fromarray(rgba, "RGBA").save(anchor_path, lossless=True, exact=True, method=6)
+        encoded = anchor_path.read_bytes()
+        if not 0 < len(encoded) <= 8_000_000:
+            raise ValueError(f"Runtime anchor {state['id']} exceeds the 8 MB frame bound")
+        anchor_frames[state["id"]] = {"file": anchor_file, "sha256": digest(encoded), "bytes": len(encoded),
+                                      "width": w, "height": h, "rgba_sha256": digest(rgba.tobytes())}
     variants = {}
     for variant, stride in spec["variants"].items():
         if not isinstance(stride, int) or not 1 <= stride <= 32:
@@ -282,6 +296,7 @@ def build(spec_path, output):
             variants[variant]["trajectories"] = trajectories
     manifest = {"version": 1, "id": ident, "representation": "paired-gaussian-paint", "canvas_xy": [w, h],
                 "states": states, "arcs": spec["arcs"], "segments": [{"from": a, "to": b} for a, b in segments], "variants": variants,
+                "anchors": {"frames": anchor_frames, "maximum_resident": 3, "fade_seconds": .09},
                 "speech_landmarks": spec.get("speech_landmarks", []), "speech_radius_px": spec.get("speech_radius_px", [12, 8]), "speech_amplitude_px": spec.get("speech_amplitude_px", 1)}
     (output / f"{ident}.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
     return manifest

@@ -8,10 +8,12 @@ for registration, renderer lifetime and handoff, and [narrative action rigging](
 for interaction ownership.
 
 The portable files are [`actor.mjs`](../assets/paired-gaussian/actor.mjs),
+[`anchor.mjs`](../assets/paired-gaussian/anchor.mjs),
 [`owner.mjs`](../assets/paired-gaussian/owner.mjs),
 [`build_paired_gaussian.py`](../scripts/build_paired_gaussian.py) and a
 synthetic [specification](../assets/paired-gaussian/fixture/spec.json). Run
-`node --test tests/paired-gaussian.test.mjs` from the skill root. The fixture is
+`node --test tests/paired-gaussian.test.mjs tests/paired-gaussian-anchor.test.mjs`
+from the skill root. The fixture is
 a binary/lifecycle test; its cartoon paint is not reference anatomy or a
 shipping character. The Python builder uses the skill's existing NumPy,
 Pillow and SciPy environment. It adds no JavaScript package or remote runtime.
@@ -19,7 +21,10 @@ Pillow and SciPy environment. It adds no JavaScript package or remote runtime.
 ## Author a state graph before packing paint
 
 Choose main poses that the game can safely hold, such as `work` and `gesture`.
-Put approved transition keys between them. Each key uses the **same RGBA canvas,
+Put two or three approved, stable painted transition keys between each pair of
+main poses; add more around changing proportions, limb crossings, or prop turns.
+Gaussian splatting smooths the texture handoff between adjacent anchors. It
+does not replace those authored inbetweens. Each key uses the **same RGBA canvas,
 scale, facing, ground line and pivot**. Assign monotonically increasing `time`
 values in seconds to an arc's keys, starting at zero. Those times are the
 simulation clock's action duration. Every interval moves continuously; do not
@@ -89,6 +94,19 @@ face, cloth, hand and prop at native rendered size on light/dark backgrounds.
 If material crosses itself, changes occlusion or lacks a corresponding limb,
 author a bridge key or layer ownership instead of tuning the matcher blindly.
 
+The builder also saves each registered key as a **lossless native-canvas WebP**
+after clearing RGB under fully transparent pixels. The manifest's `anchors`
+section records frame dimensions, byte length and hashes, with
+`maximum_resident: 3` and `fade_seconds: 0.09`. A 32 × 32 paint plane follows
+2–32 common named landmark controls through each segment using a weighted
+local-similarity transform. The original painting stays detailed during
+ordinary motion and is unchanged at exact keys. The single Gaussian cloud
+covers the texture handoff for 90 ms on either side of each segment midpoint;
+the selected source/target image changes only at zero paint opacity. The clock
+never holds at an intermediate key. This deformation still needs visual review:
+moving paint may stretch, self-cross or miss new anatomy, and the brief cloud
+handoff can look softer. Add approved bridge paintings where that happens.
+
 The builder groups each owned part into a contiguous slot range and emits
 optional `variants.<name>.trajectories` entries with `segment`, exclusive
 `start_slot`/`end_slot`, normalized `pivot_start`/`pivot_end`, and
@@ -119,7 +137,8 @@ import {createGaussianActor} from './assets/paired-gaussian/actor.mjs';
 
 const owner = await createGaussianOwner({renderer, scene, sparkModule, signal});
 const actor = await createGaussianActor({
-  THREE, owner, manifestUrl: '/animation/character.json', variant: 'desktop', signal
+  THREE, owner, manifestUrl: '/animation/character.json', variant: 'desktop',
+  signal, queueLoad: hostAssetQueue
 });
 
 // In the existing simulation/render pass; never add another RAF or wall clock:
@@ -146,12 +165,42 @@ plane height. Its Gaussian origin is the **source plane floor**; no independent
 size fit or collision movement is added. One `SplatMesh` looks up paired XY and
 paint textures per slot/segment. Paint interpolates in premultiplied linear
 light and is encoded back to sRGB because this Spark path decodes it again.
-There is no two-cloud crossfade, midpoint paint swap or unowned animation loop.
+There is no two-cloud crossfade, exposed midpoint image swap or unowned animation loop.
 Reduced motion suppresses the optional speech deformation.
 
-Keep the approved sprite visible until `actor.update` returns true. Readiness
-requires a completed owner sort after the first visible actor update and active
-splats. A false return also covers loading, hidden state and failure. Let the
+The anchor plane uses the manifest canvas aspect at the **same center, rotation,
+height and floor** as the host sprite and cloud. Do not copy the sprite plane's
+width blindly: a registered full-canvas painting may be much wider. It copies
+the host tint and subtle colour breath. Each pair needs 2–32 finite common
+named controls; the runtime validates them before allocating geometry. Runtime
+loading first decodes one key
+inside actor preparation, then admits at most one queued load for nearby keys;
+three decoded/GPU frames per actor is the maximum. Subsequent anchor load or
+decode failures appear in `paint.inspect().failures`. While a painted key is
+missing or late, the actor uses its sorted cloud at full strength. Preparation
+or owner failure makes `actor.update()` return false for the host sprite fallback.
+The actor's `settle()` is a test helper,
+not a render-loop wait. Hosts without approved anchors can set `anchorPaint:false`
+for a cloud-only experiment; older manifests without `anchors` stay readable.
+When the spec declares up to two named `speech_landmarks`, the raster key uses
+the same localized mouth cue and reduced-motion suppression as the cloud;
+without them, the raster stays unchanged during speech.
+
+The shared owner places the Spark transparent batch between up to two admitted
+paint planes in camera-depth order and restores Three's default sort when its
+last plane retires. Its pinned Three r186 comparator uses **homogeneous clip Z**
+from the camera projection, without dividing by W, matching Three's transparent
+render-list `z` for perspective and orthographic cameras. Camera-space distance
+and projected NDC depth are not interchangeable with that value. This starter
+installs that comparator while paint
+is attached. A host with its own custom transparent sorter must compose it
+rather than let this starter replace it. Depth testing remains on;
+paint and cloud do not become globally frontmost.
+
+Keep the approved sprite visible until `actor.update` returns true. A loaded
+painted key can be ready before a Spark sort; moving cloud visibility requires a
+completed owner sort after the first visible actor update and active splats. A
+false return also covers loading, hidden state and failure. Let the
 host's existing event receipt and generation token handle cancellation/replay.
 Retiring an actor detaches it immediately and defers mesh/texture disposal until
 the pending sort settles; dispose actors before disposing their shared owner.

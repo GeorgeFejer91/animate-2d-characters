@@ -1,9 +1,12 @@
 """Adversarial correspondence tests for alpha-zero endpoint support."""
 import importlib.util
+import hashlib
+import json
 from pathlib import Path
 import unittest
 
 import numpy as np
+from PIL import Image
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -80,6 +83,21 @@ class SyntheticEndpointTests(unittest.TestCase):
         slot = next(n for n in range(*ranges["prop"]) if not color_start[n, 3])
         np.testing.assert_array_equal(start[slot], end[slot])
         self.assertEqual(tuple(start[slot]), (6.0, 5.0))
+
+    def test_runtime_anchor_webp_is_lossless_with_zero_hidden_rgb(self):
+        built = ROOT / "assets/paired-gaussian/fixture/built"
+        manifest = json.loads((built / "synthetic-action.json").read_text())
+        self.assertEqual(manifest["anchors"]["maximum_resident"], 3)
+        self.assertEqual(manifest["anchors"]["fade_seconds"], .09)
+        for state in manifest["states"]:
+            frame = manifest["anchors"]["frames"][state["id"]]
+            encoded = (built / frame["file"]).read_bytes()
+            self.assertEqual(len(encoded), frame["bytes"])
+            self.assertEqual(hashlib.sha256(encoded).hexdigest(), frame["sha256"])
+            rgba = np.asarray(Image.open(built / frame["file"]).convert("RGBA"))
+            self.assertEqual(list(rgba.shape), [*manifest["canvas_xy"][::-1], 4])
+            self.assertTrue(np.all(rgba[rgba[:, :, 3] == 0, :3] == 0))
+            self.assertEqual(hashlib.sha256(rgba.tobytes()).hexdigest(), frame["rgba_sha256"])
 
 
 if __name__ == "__main__":

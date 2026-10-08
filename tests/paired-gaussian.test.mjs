@@ -9,6 +9,7 @@ import {gunzipSync} from 'node:zlib';
 import {createHash} from 'node:crypto';
 import {sampleArc,sampleOwnedTrajectory,validateGaussianManifest,unpackGaussianRecords,createGaussianActor} from '../assets/paired-gaussian/actor.mjs';
 import {createGaussianOwner} from '../assets/paired-gaussian/owner.mjs';
+import {anchorBlend,createPaintedAnchor} from '../assets/paired-gaussian/anchor.mjs';
 
 const fixture=new URL('../assets/paired-gaussian/fixture/built/',import.meta.url);
 const specUrl=new URL('../assets/paired-gaussian/fixture/spec.json',import.meta.url);
@@ -33,6 +34,8 @@ test('builder output is deterministic from synthetic registered PNGs',()=>{
    const file=manifest.variants[variant].file;
    assert.equal(sha(readFileSync(join(temporary,file))),sha(readFileSync(new URL(file,fixture))));
   }
+  for(const frame of Object.values(manifest.anchors.frames))
+   assert.equal(sha(readFileSync(join(temporary,frame.file))),sha(readFileSync(new URL(frame.file,fixture))));
   assert.deepEqual(JSON.parse(readFileSync(join(temporary,'synthetic-action.json'))),manifest);
  }finally{rmSync(temporary,{recursive:true,force:true})}
 });
@@ -41,7 +44,7 @@ test('builder constrains unmatched alpha-zero endpoints to their own painted par
  const result=spawnSync('python',['-m','unittest','discover','-s','tests','-p','test_paired_gaussian_builder.py'],
   {cwd:new URL('..',import.meta.url),encoding:'utf8'});
  assert.equal(result.status,0,result.stderr);
- assert.match(result.stderr,/Ran 4 tests/);
+ assert.match(result.stderr,/Ran 5 tests/);
 });
 
 test('arc sampling keeps keys moving and the reverse/roundtrip seam continuous',()=>{
@@ -218,11 +221,11 @@ test('actor decodes native gzip and keeps host pivot, one cloud and sort readine
  let shader='';
  class Dyno{constructor(options){this.options=options}apply(inputs){const names=Object.fromEntries(Object.keys(inputs).map(key=>[key,key]));shader=this.options.statements({inputs:names,outputs:{gsplat:'outGsplat'}});return{gsplat:'compiled'}}}
  const dyno={Gsplat:'Gsplat',Dyno,unindentLines:value=>value,dynoSampler2D:value=>value,
-  dynoFloat:value=>({value}),dynoVec2:value=>({value}),dynoBlock:(_in,_out,build)=>build({gsplat:'inGsplat'})};
+  dynoFloat:value=>({value}),dynoVec2:value=>({value}),dynoVec3:value=>({value}),dynoBlock:(_in,_out,build)=>build({gsplat:'inGsplat'})};
  const owner={SplatMesh,dyno,started:0,completed:0,attach(mesh){this.mesh=mesh},retire(mesh,cleanup){this.retired=mesh;cleanup()},inspect(){return{ready:true,startedUpdates:this.started,completedUpdates:this.completed,activeSplats:5,pending:false,failure:''}}};
  const THREE={DataTexture,Vector2,Vector3,Quaternion:class{},Color:class{},FloatType:'float',UnsignedByteType:'byte',RGBAFormat:'rgba',NearestFilter:'nearest',ClampToEdgeWrapping:'clamp'};
  try{
-  const actor=await createGaussianActor({THREE,owner,manifestUrl:new URL('synthetic-action.json',fixture)});
+  const actor=await createGaussianActor({THREE,owner,manifestUrl:new URL('synthetic-action.json',fixture),anchorPaint:false});
   assert.equal(owner.mesh.options.maxSplats,256);assert.equal(textures.length,3);
   assert.match(shader,/int slot=cell\.x\+cell\.y\*256;/);
   assert.match(shader,/if\(int\(segment\)==2&&slot>=205&&slot<251\)/);
