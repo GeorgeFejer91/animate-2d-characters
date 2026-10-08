@@ -20,6 +20,8 @@ A source mismatch, a reported incongruity, an unresolved finding or “pass with
 
 Run `audit_final_frame_analysis.py manifest.json --review review.json --report report.json`. It requires Python, Pillow and NumPy. This gate validates current-image evidence and coverage; it cannot independently decide whether a written visual judgment is honest or accurate.
 
+Each invocation covers one encoded export. For a handoff between separate atlas/detail files, bind each affected export to its own frame evidence within the same acceptance record and capture the actual runtime handoff. Passing each file's provenance check does not prove cross-file phase, pivot or pose continuity.
+
 The manifest includes:
 
 - `export: {file, sha256}`, `cell_size_xy: [width, height]` and `movement_rows: [{row, count}]` declaring complete affected atlas rows.

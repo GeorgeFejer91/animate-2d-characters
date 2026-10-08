@@ -50,6 +50,13 @@ the same normalized phase when switching resolution. Verify
 the first, every intermediate, last and wraparound sample in the actual renderer,
 including load failure and mobile variants.
 
+A static close-up pose has no animation phase to preserve. Declare it as a
+deliberate approximation and inspect the actual handoff from several moving
+phases; a frame counter advancing behind static UVs is not visible animation.
+If it causes a pose jump or hides the action, keep the animated variant active,
+switch only at a compatible planted hold, or bake the needed approved detail
+clip. Choose the smallest repair supported by the observed failure.
+
 ## Run a bounded trial
 
 1. Save approved sources/keys, prior export hashes and the consumer's cadence.
