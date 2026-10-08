@@ -37,6 +37,13 @@ test('builder output is deterministic from synthetic registered PNGs',()=>{
  }finally{rmSync(temporary,{recursive:true,force:true})}
 });
 
+test('builder constrains unmatched alpha-zero endpoints to their own painted part',()=>{
+ const result=spawnSync('python',['-m','unittest','discover','-s','tests','-p','test_paired_gaussian_builder.py'],
+  {cwd:new URL('..',import.meta.url),encoding:'utf8'});
+ assert.equal(result.status,0,result.stderr);
+ assert.match(result.stderr,/Ran 4 tests/);
+});
+
 test('arc sampling keeps keys moving and the reverse/roundtrip seam continuous',()=>{
  const first=sampleArc(manifest,{arc:'extend',phase:0,pose:'work'});
  assert.deepEqual([first.segment,first.u],[0,0]);

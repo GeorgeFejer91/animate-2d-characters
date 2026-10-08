@@ -235,9 +235,9 @@
   "variants": {
     "desktop": {
       "file": "synthetic-action-desktop.bin.gz",
-      "sha256": "464cfc15ffa5871300cb7c6d3dd5a1e2250fd3dded3f2a760a258191bcfb5916",
-      "decoded_sha256": "47a492789a41e649da2f74b184e3b2ca728c2d35783b25540cb816b42ddbd39c",
-      "bytes": 2489,
+      "sha256": "a01f72d8cc77552b402601dab460dd30467343679dadffd1f9aa1371276634c1",
+      "decoded_sha256": "a81740aca7ecccbf1681399254beb32bcd0ace4dd7fe7f50554c91c17ba25d90",
+      "bytes": 2148,
       "decoded_bytes": 18432,
       "sample_count": 256,
       "stride_px": 2,
@@ -290,9 +290,9 @@
     },
     "mobile": {
       "file": "synthetic-action-mobile.bin.gz",
-      "sha256": "8997236b3100680962b66909ae300d6de644d29197b84d10ef46c90bec561df8",
-      "decoded_sha256": "ede67549f1437cf75a7073bf4b7ef392010dfeaa19e20c682f4601108386afaf",
-      "bytes": 706,
+      "sha256": "aade7d4c1a4dc15fa94f8a42116da3a612f03008438a54010a343bd181099a5b",
+      "decoded_sha256": "0c80ae2471db2d9c348a17a4d3ebfdc5bd2c9c1f445282a4ca50b00dd85742f6",
+      "bytes": 628,
       "decoded_bytes": 18432,
       "sample_count": 256,
       "stride_px": 4,

@@ -72,7 +72,13 @@ python scripts/build_paired_gaussian.py \
 The builder samples painted RGBA, transports centers using named landmarks,
 and solves one-to-one correspondence **within each named part** using a
 bidirectional spatial and colour cost. Missing border samples fade in or out;
-visible endpoints are drawn from their exact painted keys. The builder rejects
+visible endpoints are drawn from their exact painted keys. The builder projects
+synthetic birth/death positions more than one sampling stride beyond the same
+named part's visible support to the nearest support sample.
+If that part is absent in the opposite key, the synthetic endpoint stays at
+its visible counterpart. Exact visible key paint is unchanged. This limits
+detached fade trails; it does not establish correct anatomy or approve an
+action's rendered appearance. The builder rejects
 part assignments over four million pair costs; split a large part into smaller
 meaningful regions or increase the sampling stride. It writes deterministic
 gzip records, source hashes, counts, durations and a manifest. The record is

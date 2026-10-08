@@ -13,6 +13,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 from scipy.optimize import linear_sum_assignment
+from scipy.spatial import cKDTree
 from scipy.spatial.distance import cdist
 
 WIDTH = 256
@@ -170,6 +171,22 @@ def match(source_sample, target_sample, source, target, stride, width, height):
                 used_b.add(j)
             pairs.extend((int(i), None) for i in ai if int(i) not in used_a)
             pairs.extend((None, int(j)) for j in bi if int(j) not in used_b)
+        # Only alpha-zero endpoints are synthetic. Constrain births/deaths to
+        # their own visible part instead of letting landmark extrapolation
+        # launch a fading sample into empty space or a neighboring part.
+        born = np.array([j for i, j in pairs[first_slot:] if i is None], dtype=int)
+        dying = np.array([i for i, j in pairs[first_slot:] if j is None], dtype=int)
+        for missing, support, predicted, visible in (
+            (born, ax[ai], back, bx), (dying, bx[bi], predict, ax)
+        ):
+            if not len(missing):
+                continue
+            if not len(support):
+                predicted[missing] = visible[missing]
+                continue
+            distance, nearest = cKDTree(support).query(predicted[missing])
+            outside = distance > stride
+            predicted[missing[outside]] = support[nearest[outside]]
         ranges[part] = (first_slot, len(pairs))
     a = np.zeros((len(pairs), 2), dtype=float)
     b = np.zeros_like(a)
