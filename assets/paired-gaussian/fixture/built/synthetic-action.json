@@ -1,0 +1,214 @@
+{
+  "version": 1,
+  "id": "synthetic-action",
+  "representation": "paired-gaussian-paint",
+  "canvas_xy": [
+    64,
+    64
+  ],
+  "states": [
+    {
+      "id": "work",
+      "role": "main",
+      "file": "work.png",
+      "landmarks": {
+        "core": [
+          32,
+          37
+        ],
+        "tip": [
+          51,
+          34
+        ],
+        "base": [
+          32,
+          57
+        ],
+        "face": [
+          32,
+          17
+        ]
+      },
+      "regions": [
+        {
+          "part": "arm",
+          "polygon": [
+            [
+              38,
+              23
+            ],
+            [
+              56,
+              27
+            ],
+            [
+              56,
+              41
+            ],
+            [
+              38,
+              34
+            ]
+          ]
+        }
+      ],
+      "sha256": "f675a4d3636890ddf865974b8317c7cb318e5159723249193b52e19c4a32d3a3"
+    },
+    {
+      "id": "bridge",
+      "role": "transition",
+      "file": "bridge.png",
+      "landmarks": {
+        "core": [
+          32,
+          37
+        ],
+        "tip": [
+          50,
+          20
+        ],
+        "base": [
+          32,
+          57
+        ],
+        "face": [
+          32,
+          17
+        ]
+      },
+      "regions": [
+        {
+          "part": "arm",
+          "polygon": [
+            [
+              36,
+              12
+            ],
+            [
+              55,
+              13
+            ],
+            [
+              55,
+              31
+            ],
+            [
+              37,
+              35
+            ]
+          ]
+        }
+      ],
+      "sha256": "e998e1ff93989ea7f1c387300c3eba784c07ac431b6657ec5678e6e72440876a"
+    },
+    {
+      "id": "gesture",
+      "role": "main",
+      "file": "gesture.png",
+      "landmarks": {
+        "core": [
+          32,
+          37
+        ],
+        "tip": [
+          44,
+          9
+        ],
+        "base": [
+          32,
+          57
+        ],
+        "face": [
+          32,
+          17
+        ]
+      },
+      "regions": [
+        {
+          "part": "arm",
+          "polygon": [
+            [
+              35,
+              4
+            ],
+            [
+              49,
+              4
+            ],
+            [
+              49,
+              27
+            ],
+            [
+              38,
+              35
+            ]
+          ]
+        }
+      ],
+      "sha256": "02bdfeedcde66d20cf1fe7b0988ee18b4be05344fce77c13b8f3ac452b8498b7"
+    }
+  ],
+  "arcs": [
+    {
+      "id": "extend",
+      "from": "work",
+      "to": "gesture",
+      "duration": 1.1,
+      "segments": [
+        {
+          "segment": 0,
+          "start": 0,
+          "end": 0.45
+        },
+        {
+          "segment": 1,
+          "start": 0.45,
+          "end": 1.1
+        }
+      ]
+    }
+  ],
+  "segments": [
+    {
+      "from": "work",
+      "to": "bridge"
+    },
+    {
+      "from": "bridge",
+      "to": "gesture"
+    }
+  ],
+  "variants": {
+    "desktop": {
+      "file": "synthetic-action-desktop.bin.gz",
+      "sha256": "aa289ea6a405c510ac4d0776ba7447df7f9e35dcb03f9afbde22fa2fd62128ce",
+      "decoded_sha256": "100885fe5ab863b0d41a6cfc313efc8eb2698bfb97c30c64f4b0978683d4095d",
+      "bytes": 1915,
+      "decoded_bytes": 12288,
+      "sample_count": 256,
+      "stride_px": 2,
+      "segment_count": 2,
+      "record_bytes": 24
+    },
+    "mobile": {
+      "file": "synthetic-action-mobile.bin.gz",
+      "sha256": "1071c8d8ad550b159fc1b2d9b419f620613f608426816997cc1223f355e5f4c1",
+      "decoded_sha256": "eae183a6b5cca967295b3812c8331020ebb4960e3e14df52ba540274b4d51689",
+      "bytes": 550,
+      "decoded_bytes": 12288,
+      "sample_count": 256,
+      "stride_px": 4,
+      "segment_count": 2,
+      "record_bytes": 24
+    }
+  },
+  "speech_landmarks": [
+    "face"
+  ],
+  "speech_radius_px": [
+    9,
+    6
+  ],
+  "speech_amplitude_px": 0.5
+}

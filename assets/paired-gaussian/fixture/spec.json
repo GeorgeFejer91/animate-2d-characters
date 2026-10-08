@@ -1,0 +1,32 @@
+{
+  "id": "synthetic-action",
+  "canvas_xy": [64, 64],
+  "speech_landmarks": ["face"],
+  "speech_radius_px": [9, 6],
+  "speech_amplitude_px": 0.5,
+  "variants": {"desktop": 2, "mobile": 4},
+  "states": [
+    {
+      "id": "work", "role": "main", "file": "work.png",
+      "landmarks": {"core": [32, 37], "tip": [51, 34], "base": [32, 57], "face": [32, 17]},
+      "regions": [{"part": "arm", "polygon": [[38, 23], [56, 27], [56, 41], [38, 34]]}]
+    },
+    {
+      "id": "bridge", "role": "transition", "file": "bridge.png",
+      "landmarks": {"core": [32, 37], "tip": [50, 20], "base": [32, 57], "face": [32, 17]},
+      "regions": [{"part": "arm", "polygon": [[36, 12], [55, 13], [55, 31], [37, 35]]}]
+    },
+    {
+      "id": "gesture", "role": "main", "file": "gesture.png",
+      "landmarks": {"core": [32, 37], "tip": [44, 9], "base": [32, 57], "face": [32, 17]},
+      "regions": [{"part": "arm", "polygon": [[35, 4], [49, 4], [49, 27], [38, 35]]}]
+    }
+  ],
+  "arcs": [
+    {"id": "extend", "keys": [
+      {"state": "work", "time": 0},
+      {"state": "bridge", "time": 0.45},
+      {"state": "gesture", "time": 1.1}
+    ]}
+  ]
+}

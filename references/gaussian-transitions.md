@@ -21,6 +21,12 @@ back view, establish correspondences between poses, or animate joints by itself.
   orbit, substantial disocclusion or articulated movement is required. Treat that
   as separate asset work; do not imply a renderer installation solved it.
 
+For a bounded action with approved painted main and transition poses, the
+[paired Gaussian action starter](paired-gaussian-actions.md) supplies a reusable
+builder, single-cloud renderer, shared Spark owner and synthetic test. It
+interpolates registered source paint at simulation-owned phases. It cannot prove
+anatomical correspondence or make an unacceptable midpoint acceptable.
+
 ## Register the actual displayed pose
 
 Inspect the texture, atlas cell, UVs, billboard dimensions and pivot actually
