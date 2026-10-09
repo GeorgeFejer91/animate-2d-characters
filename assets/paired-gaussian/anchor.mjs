@@ -1,10 +1,10 @@
-// Both paintings map into one moving pose; Gaussian detail never replaces the body.
+// Native-image Gaussian patches transport the whole painting on the paired paths.
 const smooth=value=>{const t=Math.max(0,Math.min(1,value));return t*t*(3-2*t)};
 export function anchorBlend(manifest,sample){
   const pair=manifest.segments[sample.segment],u=Math.max(0,Math.min(1,sample.u));
   return{state:u<=.5?pair.from:pair.to,opacity:1,mix:smooth(u),effect:sample.arc===null?0:Math.sin(Math.PI*u)**2};
 }
-export async function createPaintedAnchor({THREE,owner,manifest,manifestUrl,signal,queueLoad}){
+export async function createPaintedAnchor({THREE,owner,manifest,manifestUrl,signal,queueLoad,paired}){
   const spec=manifest.anchors;
   if(!spec)return null;
   signal?.throwIfAborted?.();
@@ -13,75 +13,98 @@ export async function createPaintedAnchor({THREE,owner,manifest,manifestUrl,sign
   for(const id of states){const frame=frames[id];if(!frame||!/^[\w.-]+\.webp$/.test(frame.file)||!(frame.bytes>0&&frame.bytes<=8_000_000)||frame.width!==manifest.canvas_xy[0]||frame.height!==manifest.canvas_xy[1])throw new Error('Invalid painted anchor frame')}
   if(!owner.attachPaint||!owner.retirePaint)throw new Error('Painted anchor owner unavailable');
   const byId=new Map(manifest.states.map(state=>[state.id,state]));
-  const controls=manifest.segments.map(pair=>{
+  for(const pair of manifest.segments){
     if(pair.paint_warp_gain!==undefined&&(!Number.isFinite(pair.paint_warp_gain)||pair.paint_warp_gain<0||pair.paint_warp_gain>1))throw new Error('Invalid painted warp gain');
     const a=byId.get(pair.from)?.landmarks??{},b=byId.get(pair.to)?.landmarks??{};
     const keys=Object.keys(a).filter(key=>Object.hasOwn(b,key));
     if(keys.length<2||keys.length>32)throw new Error('Painted anchor needs 2–32 common landmark controls');
-    return keys.map(key=>{
-      if(![a[key],b[key]].every(p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite)))throw new Error('Invalid painted anchor landmark');
-      return [a[key],b[key]].map(p=>[(p[0]-manifest.canvas_xy[0]/2)/manifest.canvas_xy[1],(manifest.canvas_xy[1]-p[1])/manifest.canvas_xy[1]]);
-    });
-  });
+    for(const key of keys)if(![a[key],b[key]].every(point=>Array.isArray(point)&&point.length===2&&point.every(Number.isFinite)))throw new Error('Invalid painted anchor landmark');
+  }
   const speechNames=manifest.speech_landmarks??[],speechRadius=manifest.speech_radius_px??[12,8],speechAmplitude=manifest.speech_amplitude_px??1;
   if(!Array.isArray(speechNames)||speechNames.length>2||speechNames.some(name=>typeof name!=='string')||
      !Array.isArray(speechRadius)||speechRadius.length!==2||speechRadius.some(value=>!(value>0&&Number.isFinite(value)))||
      !(speechAmplitude>=0&&Number.isFinite(speechAmplitude)&&speechAmplitude/manifest.canvas_xy[1]<.02))throw new Error('Invalid painted anchor speech settings');
-  const glslFloat=value=>Number(value).toPrecision(9);
-  const aspect=glslFloat(manifest.canvas_xy[1]/manifest.canvas_xy[0]);
-  const regularizer=glslFloat((25/manifest.canvas_xy[1])**2);
-  const mouthRadiusX=glslFloat(speechRadius[0]/manifest.canvas_xy[0]);
-  const mouthRadiusY=glslFloat(speechRadius[1]/manifest.canvas_xy[1]);
-  const mouthTravel=glslFloat(speechAmplitude/manifest.canvas_xy[1]);
   const cache=new Map(),failures=new Map(),controller=new AbortController();let disposed=false,wanted=[],pending=null,selected=null,opacity=0;
-  const geometry=new THREE.PlaneGeometry(manifest.canvas_xy[0]/manifest.canvas_xy[1],1,32,32);
-  const material=new THREE.MeshBasicMaterial({transparent:true,alphaTest:.035,depthWrite:false,side:THREE.DoubleSide});
-  const breath={value:0},mouth={value:0},mouthA={value:new THREE.Vector2()},mouthB={value:new THREE.Vector2()},mapB={value:null},mix={value:0},phase={value:0},warpGain={value:1};material.userData.breath=breath;
-  const faceA={value:Array.from({length:2},()=>new THREE.Vector2())},faceB={value:Array.from({length:2},()=>new THREE.Vector2())},faceEnabled={value:0};
-  const controlCount={value:0},controlSource={value:Array.from({length:32},()=>new THREE.Vector2())},controlTarget={value:Array.from({length:32},()=>new THREE.Vector2())};
+  const geometry=new THREE.PlaneGeometry(manifest.canvas_xy[0]/manifest.canvas_xy[1],1);
+  geometry.setAttribute('anchorSlot',new THREE.Float32BufferAttribute(new Float32Array(4),1));
+  let patches=null;
+  if(paired){
+    if(!Number.isInteger(paired.count)||paired.count<1||paired.count>20000||paired.textures?.length!==3||!(paired.stride>0&&paired.stride<=32)||!Number.isInteger(paired.rows)||paired.rows<1)throw new Error('Invalid native Gaussian patches');
+    const quad=new THREE.PlaneGeometry(2,2);
+    patches=new THREE.InstancedBufferGeometry();patches.index=quad.index;
+    for(const [key,attribute] of Object.entries(quad.attributes))patches.setAttribute(key,attribute);
+    patches.setAttribute('anchorSlot',new THREE.InstancedBufferAttribute(Float32Array.from({length:paired.count},(_,i)=>i),1));
+    patches.instanceCount=paired.count;
+  }
+  const material=new THREE.MeshBasicMaterial({transparent:true,alphaTest:.0001,depthWrite:false,side:THREE.DoubleSide});
+  const breath={value:0},mouth={value:0},mouthA={value:new THREE.Vector2()},mouthB={value:new THREE.Vector2()},mapB={value:null},mix={value:0},phase={value:0},segment={value:0},mode={value:0},effect={value:0};material.userData.breath=breath;
+  const number=value=>Number(value).toPrecision(9),aspect=number(manifest.canvas_xy[1]/manifest.canvas_xy[0]);
+  const mouthRadiusX=number(speechRadius[0]/manifest.canvas_xy[0]),mouthRadiusY=number(speechRadius[1]/manifest.canvas_xy[1]);
+  const mouthTravel=number(speechAmplitude/manifest.canvas_xy[1]);
+  const ownedPaths=(paired?.trajectories??[]).map(item=>`
+    if(int(anchorSegment)==${item.segment}&&slot>=${item.start_slot}&&slot<${item.end_slot}){
+      vec2 pivotA=vec2(${item.pivot_start.map(number)}),pivotB=vec2(${item.pivot_end.map(number)});
+      float angle=${number(item.angle_radians)},theta=u*angle;
+      vec2 localB=endpoints.zw-pivotB;
+      vec2 unturnedB=vec2(cos(angle)*localB.x+sin(angle)*localB.y,-sin(angle)*localB.x+cos(angle)*localB.y);
+      vec2 local=mix(endpoints.xy-pivotA,unturnedB,u);
+      p=mix(pivotA,pivotB,u)+anchorRotate(local,theta);
+      turn=theta;endTurn=angle;
+    }
+  `).join('\n');
+  // Three's default key stringifies this closure, which is identical for actors
+  // whose compiled shader embeds different dimensions, rows, or prop paths.
+  const programKey=JSON.stringify(['native-gaussian-paint-v1',manifest.canvas_xy,paired?.rows??1,paired?.stride??1,ownedPaths,speechRadius,speechAmplitude]);
+  material.customProgramCacheKey=()=>programKey;
   material.onBeforeCompile=shader=>{
     shader.uniforms.anchorBreath=breath;shader.uniforms.anchorMouth=mouth;shader.uniforms.anchorMouthA=mouthA;shader.uniforms.anchorMouthB=mouthB;shader.uniforms.anchorMapB=mapB;shader.uniforms.anchorMix=mix;shader.uniforms.anchorPhase=phase;
-    shader.uniforms.anchorControlCount=controlCount;shader.uniforms.anchorControlSource=controlSource;shader.uniforms.anchorControlTarget=controlTarget;
-    shader.uniforms.anchorFaceA=faceA;shader.uniforms.anchorFaceB=faceB;shader.uniforms.anchorFaceEnabled=faceEnabled;
-    shader.uniforms.anchorWarpGain=warpGain;
-    shader.vertexShader='uniform int anchorControlCount;uniform vec2 anchorControlSource[32];uniform vec2 anchorControlTarget[32];uniform float anchorPhase;uniform float anchorWarpGain;varying vec2 anchorUvA;varying vec2 anchorUvB;varying vec2 anchorCanvas;\n'+shader.vertexShader.replace('#include <begin_vertex>',`
+    shader.uniforms.anchorSegment=segment;shader.uniforms.anchorMode=mode;shader.uniforms.anchorEffect=effect;
+    shader.uniforms.anchorXY={value:paired?.textures[0]??null};shader.uniforms.anchorStart={value:paired?.textures[1]??null};shader.uniforms.anchorEnd={value:paired?.textures[2]??null};
+    shader.vertexShader=`attribute float anchorSlot;uniform sampler2D anchorXY;uniform sampler2D anchorStart;uniform sampler2D anchorEnd;uniform float anchorSegment;uniform float anchorMode;uniform float anchorPhase;uniform float anchorEffect;varying vec2 anchorUvA;varying vec2 anchorUvB;varying vec2 anchorKernel;varying vec2 anchorPresent;
+      vec2 anchorRotate(vec2 p,float a){return vec2(cos(a)*p.x-sin(a)*p.y,sin(a)*p.x+cos(a)*p.y);}
+      `+shader.vertexShader.replace('#include <begin_vertex>',`
       vec3 transformed=vec3(position);
-      vec2 q=position.xy+vec2(0.,.5),cc=vec2(0.),ca=vec2(0.),cb=vec2(0.);float total=0.;
-      anchorCanvas=q;
-      for(int k=0;k<32;k++){if(k>=anchorControlCount)break;vec2 c=mix(anchorControlSource[k],anchorControlTarget[k],anchorPhase);vec2 d=q-c;float w=1./pow(dot(d,d)+${regularizer},2.);cc+=w*c;ca+=w*anchorControlSource[k];cb+=w*anchorControlTarget[k];total+=w;}
-      cc/=max(total,1e-12);ca/=max(total,1e-12);cb/=max(total,1e-12);
-      float norm=0.,aa=0.,ba=0.,ab=0.,bb=0.;
-      for(int k=0;k<32;k++){if(k>=anchorControlCount)break;vec2 c=mix(anchorControlSource[k],anchorControlTarget[k],anchorPhase);vec2 d=q-c;float w=1./pow(dot(d,d)+${regularizer},2.);vec2 s=c-cc,a=anchorControlSource[k]-ca,b=anchorControlTarget[k]-cb;norm+=w*dot(s,s);aa+=w*dot(s,a);ba+=w*(s.x*a.y-s.y*a.x);ab+=w*dot(s,b);bb+=w*(s.x*b.y-s.y*b.x);}
-      vec2 v=q-cc;
-      vec2 a=norm>1e-12?ca+vec2(aa*v.x-ba*v.y,ba*v.x+aa*v.y)/norm:q+ca-cc;
-      vec2 b=norm>1e-12?cb+vec2(ab*v.x-bb*v.y,bb*v.x+ab*v.y)/norm:q+cb-cc;
-      a=mix(q,a,anchorWarpGain);b=mix(q,b,anchorWarpGain);
-      anchorUvA=vec2(a.x*${aspect}+.5,a.y);
-      anchorUvB=vec2(b.x*${aspect}+.5,b.y);
-    `);
-    shader.fragmentShader='uniform float anchorBreath;uniform float anchorMouth;uniform vec2 anchorMouthA;uniform vec2 anchorMouthB;uniform sampler2D anchorMapB;uniform float anchorMix;uniform float anchorPhase;uniform vec2 anchorFaceA[2];uniform vec2 anchorFaceB[2];uniform float anchorFaceEnabled;varying vec2 anchorUvA;varying vec2 anchorUvB;varying vec2 anchorCanvas;\n'+shader.fragmentShader.replace('#include <map_fragment>',`
-      vec2 uvA=anchorUvA,uvB=anchorUvB;
-      // Only an authored, separated eye pair enables face protection.
-      if(anchorFaceEnabled>.5){
-      vec2 eyeA=(anchorFaceA[0]+anchorFaceA[1])*.5,eyeB=(anchorFaceB[0]+anchorFaceB[1])*.5;
-      vec2 eye=mix(eyeA,eyeB,anchorPhase),vA=anchorFaceA[1]-anchorFaceA[0],vB=anchorFaceB[1]-anchorFaceB[0],v=mix(vA,vB,anchorPhase),d=anchorCanvas-eye;
-      float den=max(dot(v,v),1e-8),ra=dot(v,vA)/den,sa=(v.x*vA.y-v.y*vA.x)/den,rb=dot(v,vB)/den,sb=(v.x*vB.y-v.y*vB.x)/den;
-      vec2 headA=eyeA+vec2(ra*d.x-sa*d.y,sa*d.x+ra*d.y),headB=eyeB+vec2(rb*d.x-sb*d.y,sb*d.x+rb*d.y);
-      float head=1.-smoothstep(.7,1.3,length((d-vec2(0.,.015))/vec2(.105,.14)));
-      uvA=mix(uvA,vec2(headA.x*${aspect}+.5,headA.y),head);uvB=mix(uvB,vec2(headB.x*${aspect}+.5,headB.y),head);
+      vec2 q=position.xy+vec2(0.,.5);
+      anchorUvA=vec2(q.x*${aspect}+.5,q.y);anchorUvB=anchorUvA;anchorKernel=vec2(0.);anchorPresent=vec2(1.);
+      if(anchorMode>.5){
+        int slot=int(anchorSlot+.1);ivec2 cell=ivec2(slot%256,slot/256+int(anchorSegment)*${paired?.rows??1});
+        vec4 endpoints=texelFetch(anchorXY,cell,0);
+        anchorPresent=step(vec2(.001),vec2(texelFetch(anchorStart,cell,0).a,texelFetch(anchorEnd,cell,0).a));
+        float u=anchorPhase,turn=0.,endTurn=0.;vec2 p=mix(endpoints.xy,endpoints.zw,u);
+        ${ownedPaths}
+        // The same planted, phase-only wave as the real Spark cloud.
+        float planted=smoothstep(.025,.11,p.y);
+        p+=anchorEffect*planted*vec2(.006*sin(p.y*19.+u*3.14159265),.002*sin(p.x*23.-u*3.14159265));
+        float radius=${number((paired?.stride??1)/manifest.canvas_xy[1]*2.7)}*(1.+.12*anchorEffect);
+        vec2 local=position.xy*radius;
+        transformed=vec3(p+anchorRotate(local,turn)-vec2(0.,.5),0.);
+        vec2 a=endpoints.xy+local,b=endpoints.zw+anchorRotate(local,endTurn);
+        anchorUvA=vec2(a.x*${aspect}+.5,a.y);anchorUvB=vec2(b.x*${aspect}+.5,b.y);
+        anchorKernel=position.xy*2.7;
       }
+    `);
+    shader.fragmentShader='uniform float anchorBreath;uniform float anchorMouth;uniform vec2 anchorMouthA;uniform vec2 anchorMouthB;uniform sampler2D anchorMapB;uniform float anchorMix;uniform float anchorMode;uniform float anchorEffect;varying vec2 anchorUvA;varying vec2 anchorUvB;varying vec2 anchorKernel;varying vec2 anchorPresent;\n'+shader.fragmentShader.replace('#include <map_fragment>',`
+      vec2 uvA=anchorUvA,uvB=anchorUvB;
       vec2 faceA=(uvA-anchorMouthA)/vec2(${mouthRadiusX},${mouthRadiusY}),faceB=(uvB-anchorMouthB)/vec2(${mouthRadiusX},${mouthRadiusY});
       uvA.y+=exp(-dot(faceA,faceA)*3.5)*anchorMouth*${mouthTravel};uvB.y+=exp(-dot(faceB,faceB)*3.5)*anchorMouth*${mouthTravel};
       vec4 a=texture2D(map,uvA),b=texture2D(anchorMapB,uvB);
       a*=step(0.,uvA.x)*step(uvA.x,1.)*step(0.,uvA.y)*step(uvA.y,1.);
       b*=step(0.,uvB.x)*step(uvB.x,1.)*step(0.,uvB.y)*step(uvB.y,1.);
-      // sRGB anchor textures sample into linear light; blend premultiplied paint.
+      a*=anchorPresent.x;b*=anchorPresent.y;
       float coverage=mix(a.a,b.a,anchorMix);vec3 ink=mix(a.rgb*a.a,b.rgb*b.a,anchorMix);
       diffuseColor*=vec4(coverage>1e-5?ink/coverage:vec3(0.),coverage);
+      // Native image samples remain sharp inside each moving Gaussian support.
+      if(anchorMode>.5){
+        // Optical-depth partition prevents overlapping patches from turning a
+        // half-transparent edge opaque. 6.20 is the truncated grid kernel mass.
+        float weight=exp(-.5*dot(anchorKernel,anchorKernel));
+        float mass=6.20*pow(1.+.12*anchorEffect,2.);
+        diffuseColor.a=1.-exp(log(max(1.-diffuseColor.a,1e-5))*weight/mass);
+      }
       float paintLightness=dot(diffuseColor.rgb,vec3(.2126,.7152,.0722));diffuseColor.rgb=mix(vec3(paintLightness),diffuseColor.rgb,1.085+.055*anchorBreath)*(1.015+.035*anchorBreath);
     `)
   };
-  const mesh=new THREE.Mesh(geometry,material);mesh.visible=false;mesh.userData.anchorActive=false;owner.attachPaint(mesh);
+  const mesh=new THREE.Mesh(geometry,material);mesh.frustumCulled=false;mesh.visible=false;mesh.userData.anchorActive=false;owner.attachPaint(mesh);
   const free=entry=>{entry.texture.dispose();entry.bitmap.close()};
   async function load(id){
     if(disposed||controller.signal.aborted)return;
@@ -116,29 +139,8 @@ export async function createPaintedAnchor({THREE,owner,manifest,manifestUrl,sign
       const adjacent=manifest.segments[(sample.segment+direction+manifest.segments.length)%manifest.segments.length];
       const next=direction>0&&adjacent?.from===pair.to?adjacent.to:direction<0&&adjacent?.to===pair.from?adjacent.from:null;
       wanted=[...new Set([pair.from,pair.to,next].filter(Boolean))];selected=blend.state;opacity=blend.opacity;
-      const points=controls[sample.segment];controlCount.value=points.length;
-      points.forEach(([a,b],k)=>{
-        controlSource.value[k].set(...a);controlTarget.value[k].set(...b);
-      });
-      phase.value=sample.u;
-      warpGain.value=pair.paint_warp_gain??.1;
+      phase.value=sample.u;segment.value=sample.segment;effect.value=animation.reducedMotion?0:.75*blend.effect;
       const validPoint=point=>Array.isArray(point)&&point.length===2&&point.every(Number.isFinite);
-      const eyeIds=['eye_right','eye_left'];
-      faceEnabled.value=[pair.from,pair.to].every(id=>{
-        const marks=byId.get(id).landmarks,a=marks?.[eyeIds[0]],b=marks?.[eyeIds[1]];
-        return validPoint(a)&&validPoint(b)&&Math.hypot(a[0]-b[0],a[1]-b[1])>1e-3;
-      })?1:0;
-      if(faceEnabled.value){
-        const eyes=id=>eyeIds.map(key=>byId.get(id).landmarks[key]);
-        const [a,b]=[eyes(pair.from),eyes(pair.to)];
-        const vx=(a[1][0]-a[0][0])*(1-sample.u)+(b[1][0]-b[0][0])*sample.u;
-        const vy=(a[1][1]-a[0][1])*(1-sample.u)+(b[1][1]-b[0][1])*sample.u;
-        if(Math.hypot(vx,vy)<=1e-3)faceEnabled.value=0;
-      }
-      if(faceEnabled.value){for(const [id,face] of [[pair.from,faceA],[pair.to,faceB]]){
-        const marks=byId.get(id).landmarks;
-        eyeIds.forEach((key,k)=>{const p=marks[key];face.value[k].set((p[0]-manifest.canvas_xy[0]/2)/manifest.canvas_xy[1],(manifest.canvas_xy[1]-p[1])/manifest.canvas_xy[1])});
-      }}
       const hasSpeechPoint=speechNames.length>0&&[pair.from,pair.to].every(id=>speechNames.every(name=>validPoint(byId.get(id).landmarks?.[name])));
       if(hasSpeechPoint){for(const [id,center] of [[pair.from,mouthA],[pair.to,mouthB]]){
         const marks=byId.get(id).landmarks,points=speechNames.map(name=>marks[name]);
@@ -154,14 +156,15 @@ export async function createPaintedAnchor({THREE,owner,manifest,manifestUrl,sign
       if(!entry)return 0;
       // A delayed neighbor keeps the available painting intact, never stretched.
       if(!a||!b)phase.value=a?0:1;
+      mode.value=a&&b&&patches?1:0;mesh.geometry=mode.value?patches:geometry;
       if(material.map!==entry.texture){material.map=entry.texture;material.needsUpdate=true}
       mapB.value=b?.texture??entry.texture;mix.value=a&&b?blend.mix:a?0:1;
       if(!a)mapB.value=entry.texture;
       material.opacity=opacity;mesh.visible=true;return opacity;
     },
     async settle(){for(let n=0;n<3;n++){pump();if(!pending)break;await pending}},
-    inspect(){return{state:selected,opacity:mesh.visible?opacity:0,textureMix:mix.value,phase:phase.value,visible:!disposed&&mesh.visible,resident:cache.size,pending:!!pending,failures:Object.fromEntries(failures),dimensions:mesh.visible?[spec.frames[states[0]].width,spec.frames[states[0]].height]:null}},
-    dispose(){if(disposed)return;disposed=true;controller.abort();signal?.removeEventListener?.('abort',onAbort);mesh.visible=false;mesh.userData.anchorActive=false;owner.retirePaint(mesh);geometry.dispose();material.dispose();for(const entry of cache.values())free(entry);cache.clear()},
+    inspect(){return{state:selected,opacity:mesh.visible?opacity:0,textureMix:mix.value,phase:phase.value,technique:mode.value?'native-texture-gaussians':'native-anchor-fallback',splatCount:mode.value?paired.count:0,visible:!disposed&&mesh.visible,resident:cache.size,pending:!!pending,failures:Object.fromEntries(failures),dimensions:mesh.visible?[spec.frames[states[0]].width,spec.frames[states[0]].height]:null}},
+    dispose(){if(disposed)return;disposed=true;controller.abort();signal?.removeEventListener?.('abort',onAbort);mesh.visible=false;mesh.userData.anchorActive=false;owner.retirePaint(mesh);geometry.dispose();patches?.dispose();material.dispose();for(const entry of cache.values())free(entry);cache.clear()},
   };
   signal?.addEventListener?.('abort',onAbort,{once:true});
   wanted=[...new Set([manifest.segments[0].from,manifest.segments[0].to])];

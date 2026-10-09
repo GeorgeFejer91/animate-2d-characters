@@ -32,11 +32,13 @@ function fakeThree(){
  const disposed={bitmaps:0,textures:0,planes:0,materials:0};
  class Vector2{set(x,y){this.x=x;this.y=y}}
  class Vector3{constructor(x=0,y=0,z=0){this.x=x;this.y=y;this.z=z}copy(value){Object.assign(this,value);return this}}
- class PlaneGeometry{constructor(width,height,widthSegments,heightSegments){this.parameters={width,height,widthSegments,heightSegments}}dispose(){disposed.planes++}}
+ class Attribute{constructor(array,itemSize){this.array=array;this.itemSize=itemSize}}
+ class PlaneGeometry{constructor(width,height,widthSegments,heightSegments){this.parameters={width,height,widthSegments,heightSegments};this.attributes={position:new Attribute(new Float32Array(12),3)};this.index={}}setAttribute(key,value){this.attributes[key]=value}dispose(){disposed.planes++}}
+ class InstancedBufferGeometry extends PlaneGeometry{constructor(){super();this.isInstancedBufferGeometry=true}}
  class MeshBasicMaterial{constructor(options){Object.assign(this,options);this.color={copy(value){this.value=value}};this.userData={}}dispose(){disposed.materials++}}
  class Texture{constructor(bitmap){this.image=bitmap}dispose(){disposed.textures++}}
  class Mesh{constructor(geometry,material){this.geometry=geometry;this.material=material;this.position=new Vector3();this.quaternion={copy(value){this.value=value}};this.scale={setScalar(value){this.value=value}};this.userData={}}}
- return{THREE:{PlaneGeometry,MeshBasicMaterial,Texture,Mesh,DoubleSide:2,SRGBColorSpace:'srgb',LinearFilter:1,Vector2,Vector3,Color:class{},ShaderChunk:{map_fragment:'diffuseColor *= texture2D(map, vMapUv);'}},disposed};
+ return{THREE:{PlaneGeometry,InstancedBufferGeometry,Float32BufferAttribute:Attribute,InstancedBufferAttribute:Attribute,MeshBasicMaterial,Texture,Mesh,DoubleSide:2,SRGBColorSpace:'srgb',LinearFilter:1,Vector2,Vector3,Color:class{},ShaderChunk:{map_fragment:'diffuseColor *= texture2D(map, vMapUv);'}},disposed};
 }
 
 test('anchor cache stays at three painted frames and keeps source floor/aspect',async()=>{
@@ -52,37 +54,37 @@ test('anchor cache stays at three painted frames and keeps source floor/aspect',
  extended.segments.push({from:'gesture',to:'extra'});
  extended.segments.push({from:'extra',to:'work'});
  extended.anchors.frames.extra={...extended.anchors.frames.work};
+ const paired={count:256,rows:1,stride:2,textures:[{},{},{}],trajectories:manifest.variants.desktop.trajectories};
  const source={geometry:{parameters:{height:2}},scale:{y:1.2},position:new THREE.Vector3(3,1.2,-4),quaternion:{},material:{color:{r:.7},userData:{breath:{value:.3}}}};
  try{
-  const paint=await createPaintedAnchor({THREE,owner,manifest:extended,manifestUrl:new URL('synthetic-action.json',fixture),queueLoad:task=>{queued++;return task()}});
+  const paint=await createPaintedAnchor({THREE,owner,manifest:extended,manifestUrl:new URL('synthetic-action.json',fixture),paired,queueLoad:task=>{queued++;return task()}});
   assert.equal(painted.size,1);assert.equal(paint.inspect().resident,2);
   assert.equal(queued,0,'the first pair decodes directly inside actor preparation');
+  const plane=[...painted][0];near(plane.geometry.parameters.width,1);
   assert.equal(paint.update({segment:0,u:0,arc:null},source,true,{speaking:true,mouthFrame:2}),1);
-  const plane=[...painted][0];near(plane.geometry.parameters.width,1);near(plane.scale.value,2.4);
-  assert.deepEqual([plane.geometry.parameters.widthSegments,plane.geometry.parameters.heightSegments],[32,32]);
+  near(plane.scale.value,2.4);
+  assert.equal(plane.geometry.instanceCount,256);
+  assert.equal(plane.geometry.attributes.anchorSlot.array.length,256);
+  assert.equal(paint.inspect().technique,'native-texture-gaussians');
   near(plane.position.y,source.position.y);
   const shader={uniforms:{},fragmentShader:'#include <map_fragment>',vertexShader:'#include <begin_vertex>'};plane.material.onBeforeCompile(shader);
   assert.match(shader.fragmentShader,/texture2D\(map,uvA\)/);
   assert.match(shader.fragmentShader,/texture2D\(anchorMapB,uvB\)/);
   assert.match(shader.fragmentShader,/a\.rgb\*a\.a,b\.rgb\*b\.a/);
-  assert.match(shader.vertexShader,/anchorControlSource\[32\]/);
+  assert.match(shader.vertexShader,/texelFetch\(anchorXY,cell,0\)/);
+  assert.match(shader.vertexShader,/anchorRotate\(local,turn\)/);
   assert.match(shader.vertexShader,/anchorUvA=/);
   assert.match(shader.vertexShader,/anchorUvB=/);
-  assert.equal(shader.uniforms.anchorControlCount.value,5);
-  assert.equal(shader.uniforms.anchorFaceEnabled.value,0,'fixture has no authored eyes');
+  assert.match(shader.fragmentShader,/log\(max\(1\.-diffuseColor\.a,1e-5\)\)\*weight\/mass/);
+  assert.equal(shader.uniforms.anchorXY.value,paired.textures[0]);
+  assert.equal(shader.uniforms.anchorMode.value,1);
   near(shader.uniforms.anchorMouth.value,.9);
   near(shader.uniforms.anchorMouthA.value.x,.5);
   near(shader.uniforms.anchorMouthA.value.y,1-17/64);
-  assert.equal(shader.uniforms.anchorWarpGain.value,.1);
-  const tip=2,sourceTip=shader.uniforms.anchorControlSource.value[tip],targetTip=shader.uniforms.anchorControlTarget.value[tip];
-  near(sourceTip.x,(51-32)/64);near(targetTip.x,(50-32)/64);
   paint.update({segment:0,u:.25,arc:'extend'},source,true);
-  near(sourceTip.x,(51-32)/64);near(targetTip.x,(50-32)/64);
-  near(targetTip.y,(64-20)/64);
   near(shader.uniforms.anchorPhase.value,.25);near(shader.uniforms.anchorMix.value,.15625);
   paint.update({segment:0,u:1,arc:'extend'},source,true);
-  near(sourceTip.x,(51-32)/64);near(targetTip.x,(50-32)/64);
-  near(sourceTip.y,(64-34)/64);near(targetTip.y,(64-20)/64);
+  assert.equal(paint.inspect().technique,'native-texture-gaussians');
   paint.update({segment:0,u:0,arc:null},source,true,{speaking:true,mouthFrame:2,reducedMotion:true});
   near(shader.uniforms.anchorMouth.value,0);
   for(const sample of [{segment:0,u:1,arc:null},{segment:1,u:1,arc:null},{segment:3,u:1,arc:null}]){
@@ -99,7 +101,7 @@ test('anchor cache stays at three painted frames and keeps source floor/aspect',
   assert(disposed.bitmaps>=1,'least-needed painting is evicted');
   assert.equal(peakBitmaps,3,'the fourth bitmap is decoded only after eviction');
   assert(requested.every(url=>url.endsWith('.webp')));
-  paint.dispose();assert.equal(painted.size,0);assert.equal(disposed.planes,1);assert.equal(disposed.materials,1);
+  paint.dispose();assert.equal(painted.size,0);assert.equal(disposed.planes,2);assert.equal(disposed.materials,1);
   assert.equal(disposed.textures,disposed.bitmaps);
   assert.equal(liveBitmaps,0);
  }finally{globalThis.fetch=priorFetch;globalThis.createImageBitmap=priorBitmap}
@@ -117,11 +119,13 @@ test('late decoded paint is closed after abort and cannot reattach',async()=>{
  globalThis.createImageBitmap=async()=>({width:64,height:64,close(){disposed.bitmaps++}});
  const owner={attachPaint(mesh){painted.add(mesh)},retirePaint(mesh){painted.delete(mesh)}};
  try{
-  const paint=await createPaintedAnchor({THREE,owner,manifest,manifestUrl:new URL('synthetic-action.json',fixture)});
+  const paint=await createPaintedAnchor({THREE,owner,manifest,manifestUrl:new URL('synthetic-action.json',fixture),paired:{count:256,rows:1,stride:2,textures:[{},{},{}]}});
   const source={geometry:{parameters:{height:1}},scale:{y:1},position:new THREE.Vector3(),quaternion:{},material:{color:{},userData:{}}};
   assert.equal(paint.update({segment:1,u:.6,arc:'extend'},source,true),1);
   assert.equal(paint.inspect().phase,0,'available source key stays at identity while target is late');
   assert.equal(paint.inspect().textureMix,0);
+  assert.equal(paint.inspect().technique,'native-anchor-fallback');
+  assert.equal([...painted][0].geometry.parameters.width,1);
   for(let n=0;n<5&&!late;n++)await Promise.resolve();
   assert(late);const settling=paint.settle();paint.dispose();release();await settling;
   assert.equal(painted.size,0);assert.equal(paint.inspect().resident,0);
@@ -156,10 +160,11 @@ test('landmark controls validate before paint geometry or image allocation',asyn
  }
 });
 
-test('named separated eyes alone enable face protection; configured gain and speech remain independent',async()=>{
+test('arbitrary named speech controls and square-canvas float literals survive textured patches',async()=>{
  const priorFetch=globalThis.fetch,priorBitmap=globalThis.createImageBitmap;
  const {THREE}=fakeThree(),painted=new Set(),eyes=structuredClone(manifest);
- for(const state of eyes.states){state.landmarks.eye_right=[26,17];state.landmarks.eye_left=[38,17]}
+ for(const state of eyes.states){state.landmarks.custom_lip=state.landmarks.face}
+ eyes.speech_landmarks=['custom_lip'];
  eyes.segments[0].paint_warp_gain=.55;
  eyes.speech_amplitude_px=0;
  globalThis.fetch=async url=>{const bytes=readFileSync(new URL(url));return{ok:true,arrayBuffer:async()=>bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength)}};
@@ -167,19 +172,64 @@ test('named separated eyes alone enable face protection; configured gain and spe
  const owner={attachPaint(mesh){painted.add(mesh)},retirePaint(mesh){painted.delete(mesh)}};
  const source={geometry:{parameters:{height:1}},scale:{y:1},position:new THREE.Vector3(),quaternion:{},material:{color:{},userData:{}}};
  try{
-  const paint=await createPaintedAnchor({THREE,owner,manifest:eyes,manifestUrl:new URL('synthetic-action.json',fixture)});
+  const paint=await createPaintedAnchor({THREE,owner,manifest:eyes,manifestUrl:new URL('synthetic-action.json',fixture),paired:{count:256,rows:1,stride:2,textures:[{},{},{}]}});
   paint.update({segment:0,u:.5,arc:'extend'},source,true,{speaking:true,mouthFrame:2});
   const shader={uniforms:{},fragmentShader:'#include <map_fragment>',vertexShader:'#include <begin_vertex>'};
   [...painted][0].material.onBeforeCompile(shader);
-  near(shader.uniforms.anchorFaceEnabled.value,1);near(shader.uniforms.anchorWarpGain.value,.55);
   near(shader.uniforms.anchorMouth.value,.9);
-  assert.match(shader.fragmentShader,/if\(anchorFaceEnabled>\.5\)/);
+  near(shader.uniforms.anchorMouthA.value.x,.5);
   assert.match(shader.vertexShader,/a\.x\*1\.00000000\+\.5/,'square-canvas aspect is a GLSL float');
-  assert.match(shader.fragmentShader,/headA\.x\*1\.00000000\+\.5/);
+  assert.match(shader.vertexShader,/p\+anchorRotate\(local,turn\)/);
   assert.match(shader.fragmentShader,/anchorMouth\*0\.00000000/,'zero mouth travel remains a GLSL float');
   assert.match(shader.fragmentShader,/vec2\(0\.140625000,0\.0937500000\)/);
   paint.dispose();assert.equal(painted.size,0);
  }finally{globalThis.fetch=priorFetch;globalThis.createImageBitmap=priorBitmap}
+});
+
+test('compiled paint shaders use content keys across actors sharing one owner',async()=>{
+ const priorFetch=globalThis.fetch,priorBitmap=globalThis.createImageBitmap;
+ const {THREE}=fakeThree(),painted=new Set();let bitmapWidth=64,bitmapHeight=64;
+ globalThis.fetch=async url=>{const bytes=readFileSync(new URL(url));return{ok:true,arrayBuffer:async()=>bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength)}};
+ globalThis.createImageBitmap=async()=>({width:bitmapWidth,height:bitmapHeight,close(){}});
+ const owner={attachPaint(mesh){painted.add(mesh)},retirePaint(mesh){painted.delete(mesh)}};
+ const basePaired={count:256,rows:1,stride:2,textures:[{},{},{}],trajectories:manifest.variants.desktop.trajectories};
+ async function keyFor(spec,paired=basePaired){
+  [bitmapWidth,bitmapHeight]=spec.canvas_xy;
+  const paint=await createPaintedAnchor({THREE,owner,manifest:spec,manifestUrl:new URL('synthetic-action.json',fixture),paired});
+  const material=[...painted][0].material,key=material.customProgramCacheKey(),closure=material.onBeforeCompile.toString();
+  paint.dispose();return{key,closure};
+ }
+ try{
+  const first=await keyFor(manifest),same=await keyFor(structuredClone(manifest));
+  assert.equal(first.key,same.key,'equal shader constants reuse one compiled program');
+  const wide=structuredClone(manifest);wide.canvas_xy=[128,64];
+  for(const frame of Object.values(wide.anchors.frames))frame.width=128;
+  const changed=[
+   await keyFor(wide),
+   await keyFor(manifest,{...basePaired,rows:2}),
+   await keyFor(manifest,{...basePaired,stride:4}),
+   await keyFor(manifest,{...basePaired,trajectories:[]}),
+   await keyFor({...manifest,speech_amplitude_px:0}),
+   await keyFor({...manifest,speech_radius_px:[11,7]}),
+  ];
+  for(const variant of changed){
+   assert.notEqual(variant.key,first.key,'embedded shader constants require a new program');
+   assert.equal(variant.closure,first.closure,'Three default closure key would collide');
+  }
+  assert.equal(painted.size,0);
+ }finally{globalThis.fetch=priorFetch;globalThis.createImageBitmap=priorBitmap}
+});
+
+test('log-transmittance Gaussian weights retain partial alpha across an overlapping lattice',()=>{
+ for(const x of [0,.2,.5,.8])for(const y of [0,.35,.75])for(const alpha of [.1,.5,.9,1]){
+  let transmission=1;
+  for(let i=-3;i<=3;i++)for(let j=-3;j<=3;j++){
+   const dx=i-x,dy=j-y;if(Math.abs(dx)>2.7||Math.abs(dy)>2.7)continue;
+   const weight=Math.exp(-.5*(dx*dx+dy*dy));
+   transmission*=Math.max(1-alpha,1e-5)**(weight/6.20);
+  }
+  assert(Math.abs(1-transmission-alpha)<.009,`alpha ${alpha} at (${x},${y}) drifted`);
+ }
 });
 
 test('shared owner matches Three clip-Z sorting in perspective and orthographic cameras',async()=>{

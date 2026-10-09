@@ -230,7 +230,8 @@ test('actor decodes native gzip and keeps host pivot, one cloud and sort readine
   assert.match(shader,/int slot=cell\.x\+cell\.y\*256;/);
   assert.match(shader,/if\(int\(segment\)==2&&slot>=205&&slot<251\)/);
   assert.match(shader,/p=mix\(pivotA,pivotB,u\)\+vec2\(cos\(theta\)/);
-  assert.match(shader,/float local=mix\(1\.,moving\*\(1\.-faceEnabled\*faceMask\)\*planted,painted\)/);
+  assert.match(shader,/float flow=strength\*planted\*painted/);
+  assert.match(shader,/rgba\.a\*=strength\*mix\(1\.,\.15,painted\)/);
   assert(!shader.includes('${'),'generated Spark code must not contain unresolved placeholders');
   const host={geometry:{parameters:{height:2}},scale:{y:1},position:new Vector3(2,1,-3),rotation:{x:0,y:.2,z:0},quaternion:{}};
   assert.equal(actor.update({arc:'extend',phase:.2,pose:'work',speaking:true,mouthFrame:2},host),false);

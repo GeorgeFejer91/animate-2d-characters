@@ -23,8 +23,8 @@ Pillow and SciPy environment. It adds no JavaScript package or remote runtime.
 Choose main poses that the game can safely hold, such as `work` and `gesture`.
 Put two or three approved, stable painted transition keys between each pair of
 main poses; add more around changing proportions, limb crossings, or prop turns.
-Gaussian splatting smooths the texture handoff between adjacent anchors. It
-does not replace those authored inbetweens. Each key uses the **same RGBA canvas,
+Native-image Gaussian patches carry source detail through the whole interval;
+they do not replace authored inbetweens. Each key uses the **same RGBA canvas,
 scale, facing, ground line and pivot**. Assign monotonically increasing `time`
 values in seconds to an arc's keys, starting at zero. Those times are the
 simulation clock's action duration. Every interval moves continuously; do not
@@ -98,29 +98,26 @@ The builder also saves each registered key as a **lossless native-canvas WebP**
 after clearing RGB under fully transparent pixels. The manifest's `anchors`
 section records frame dimensions, byte length and hashes, with
 `maximum_resident: 3` and a retained `fade_seconds` compatibility field.
-A 32 × 32 plane maps both paintings into one moving pose with inverse
-weighted local-similarity UV transforms from 2–32 common named controls.
-Their premultiplied paint blends in linear light across the whole segment;
-paint opacity stays full. The source and target paintings are exact at their
-keys, and the clock never holds at an intermediate key. An optional Gaussian
-fringe follows moving regions using the same simulation phase, with a
-`sin²(π phase)` envelope, planted-foot protection and face protection only
-when both states provide separated named `eye_right` and `eye_left` points.
-There is no fallback eye or invented face anatomy. The fringe can add a
-localized trippy halo; it does not pulse the whole painting's opacity.
-Each segment may set `paint_warp_gain` from 0 to 1; the portable default is
-0.1. The gain attenuates inverse UV displacement but is **not a topology
-proof**. Inspect native-size crossings, paint coverage and transparent
-neighbor triangles throughout each arc; approve bridge paintings and owned
-regions where motion changes occlusion or anatomy. Interior paint can still
-stretch or double-expose even when the exact keys are sharp.
-To retain audited gains across rebuilds, set `paint_warp_gains` in the source
-spec to an array of finite 0–1 values in the builder's unique segment order
-(first occurrence of each adjacent `from`/`to` pair while reading arcs).
-Its length must equal the unique segment count. The builder copies each value
-to that segment's `paint_warp_gain`; omit the array to use the runtime's 0.1
-default. The synthetic spec omits it because its cartoon motion has no audited
-gain.
+One instanced patch mesh uses the same packed paired XY positions as the Spark
+cloud and samples both full-resolution WebP paintings. Its Gaussian texture
+patches blend premultiplied linear paint over the entire segment using the
+simulation phase; paired endpoint alpha gates prevent a born or dying slot
+from sampling unrelated visible paint. Owned prop patches rotate their image
+UVs with the authored trajectory. A quiet full-body Spark halo follows behind
+the native-image patches, with a small planted-foot phase wave rather than a
+whole-body opacity pulse. The clock never holds at an intermediate key.
+
+The patch sigma is one sampling stride with support about 2.7 strides. A
+log-transmittance partition (kernel mass 6.20) keeps overlapping regular-grid
+patches from making antialiased edges fully opaque; it approximates native
+alpha and is not an exact general overlap resolve. Verify thin outlines,
+partially transparent edges, adjacent-key seams and full native-frame coverage
+on both light and dark backgrounds. Every source key needs enough original
+image-grid samples: a synthetic or reused head cloud can leave uncovered
+pixels even when its packed colour looks plausible. Repair sampling/ownership
+and approve bridge art before promoting a character. The builder still accepts
+optional `paint_warp_gains` and emits `paint_warp_gain` for old manifests, but
+the textured-patch transport ignores that legacy MLS tuning field.
 
 The builder groups each owned part into a contiguous slot range and emits
 optional `variants.<name>.trajectories` entries with `segment`, exclusive
@@ -178,16 +175,18 @@ the planted main endpoint before walking. Unknown gait art must keep the sprite.
 The actor reads the registered source mesh's position, quaternion and original
 plane height. Its Gaussian origin is the **source plane floor**; no independent
 size fit or collision movement is added. One `SplatMesh` looks up paired XY and
-paint textures per slot/segment. Paint interpolates in premultiplied linear
-light and is encoded back to sRGB because this Spark path decodes it again.
+paint textures per slot/segment, while one instanced patch mesh samples the
+original WebPs on those same paths. Paint interpolates in premultiplied linear
+light; the Spark path encodes its colour back to sRGB because Spark decodes it again.
 There is no two-cloud crossfade, exposed midpoint image swap or unowned animation loop.
-Reduced motion suppresses the optional speech deformation.
+Reduced motion suppresses the small phase wave and optional speech deformation.
 
-The anchor plane uses the manifest canvas aspect at the **same center, rotation,
+The patch mesh uses the manifest canvas aspect at the **same center, rotation,
 height and floor** as the host sprite and cloud. Do not copy the sprite plane's
 width blindly: a registered full-canvas painting may be much wider. It copies
 the host tint and subtle colour breath. Each pair needs 2–32 finite common
-named controls; the runtime validates them before allocating geometry. Runtime
+named controls; the runtime validates them before allocating geometry. A single
+identity paint plane appears only while one neighbor image is missing. Runtime
 loading directly decodes both keys of the first segment inside actor
 preparation, then admits at most one queued load for a nearby third key;
 three decoded/GPU frames per actor is the maximum. Subsequent anchor load or
@@ -199,13 +198,13 @@ or owner failure makes `actor.update()` return false for the host sprite fallbac
 The actor's `settle()` is a test helper,
 not a render-loop wait. Hosts without approved anchors can set `anchorPaint:false`
 for a cloud-only experiment; older manifests without `anchors` stay readable.
-When the spec declares up to two named `speech_landmarks`, the raster paint uses
+When the spec declares up to two named `speech_landmarks`, the texture patches use
 the same localized mouth cue and reduced-motion suppression as the cloud;
-without them, the raster stays unchanged during speech.
+without them, their paint stays unchanged during speech.
 
 The shared owner places the Spark transparent batch between up to two admitted
-paint planes in camera-depth order and restores Three's default sort when its
-last plane retires. Its pinned Three r186 comparator uses **homogeneous clip Z**
+paint meshes in camera-depth order and restores Three's default sort when its
+last paint mesh retires. Its pinned Three r186 comparator uses **homogeneous clip Z**
 from the camera projection, without dividing by W, matching Three's transparent
 render-list `z` for perspective and orthographic cameras. Camera-space distance
 and projected NDC depth are not interchangeable with that value. This starter

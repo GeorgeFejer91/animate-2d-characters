@@ -23,9 +23,11 @@ back view, establish correspondences between poses, or animate joints by itself.
 
 For a bounded action with approved painted main and transition poses, the
 [paired Gaussian action starter](paired-gaussian-actions.md) supplies a reusable
-builder, single-cloud renderer, shared Spark owner and synthetic test. It
-interpolates registered source paint at simulation-owned phases. It cannot prove
-anatomical correspondence or make an unacceptable midpoint acceptable.
+builder, native-image Gaussian texture-patch mesh, subdued single Spark cloud,
+shared owner and synthetic test. Both layers follow paired correspondences at
+simulation-owned phases, without a separate clock. Full-resolution source
+sampling does not prove endpoint coverage or anatomical correspondence; inspect
+the entire arc and repair uncovered or incorrect parts before promotion.
 
 ## Register the actual displayed pose
 
