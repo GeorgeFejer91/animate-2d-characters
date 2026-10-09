@@ -3,6 +3,7 @@ import importlib.util
 import hashlib
 import json
 from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
 
 import numpy as np
@@ -98,6 +99,40 @@ class SyntheticEndpointTests(unittest.TestCase):
             self.assertEqual(list(rgba.shape), [*manifest["canvas_xy"][::-1], 4])
             self.assertTrue(np.all(rgba[rgba[:, :, 3] == 0, :3] == 0))
             self.assertEqual(hashlib.sha256(rgba.tobytes()).hexdigest(), frame["rgba_sha256"])
+
+    def test_optional_paint_warp_gains_survive_manifest_build(self):
+        fixture = ROOT / "assets/paired-gaussian/fixture"
+        spec = json.loads((fixture / "spec.json").read_text())
+        for entry in spec["states"]:
+            entry["file"] = str(fixture / entry["file"])
+        spec["paint_warp_gains"] = [0, .4, 1]
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "spec.json"
+            path.write_text(json.dumps(spec))
+            manifest = BUILDER.build(path, Path(directory) / "out")
+            self.assertEqual([pair["paint_warp_gain"] for pair in manifest["segments"]], [0, .4, 1])
+            self.assertEqual([(pair["from"], pair["to"]) for pair in manifest["segments"]],
+                             [("work", "bridge"), ("bridge", "gesture"), ("work", "gesture")])
+            del spec["paint_warp_gains"]
+            path.write_text(json.dumps(spec))
+            without = BUILDER.build(path, Path(directory) / "out-no-gain")
+            self.assertTrue(all("paint_warp_gain" not in pair for pair in without["segments"]))
+
+    def test_paint_warp_gain_array_rejects_bad_count_or_value(self):
+        fixture = ROOT / "assets/paired-gaussian/fixture"
+        spec = json.loads((fixture / "spec.json").read_text())
+        for entry in spec["states"]:
+            entry["file"] = str(fixture / entry["file"])
+        bad = [[0], None, "0.1", [0, float("nan"), 1], [0, float("inf"), 1],
+               [-.01, .4, 1], [0, .4, 1.01], [0, True, 1], [0, "0.4", 1]]
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "spec.json"
+            for values in bad:
+                with self.subTest(values=values):
+                    spec["paint_warp_gains"] = values
+                    path.write_text(json.dumps(spec))
+                    with self.assertRaisesRegex(ValueError, "paint_warp_gains"):
+                        BUILDER.build(path, Path(directory) / "out")
 
 
 if __name__ == "__main__":

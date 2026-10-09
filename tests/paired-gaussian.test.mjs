@@ -44,7 +44,7 @@ test('builder constrains unmatched alpha-zero endpoints to their own painted par
  const result=spawnSync('python',['-m','unittest','discover','-s','tests','-p','test_paired_gaussian_builder.py'],
   {cwd:new URL('..',import.meta.url),encoding:'utf8'});
  assert.equal(result.status,0,result.stderr);
- assert.match(result.stderr,/Ran 5 tests/);
+ assert.match(result.stderr,/Ran 7 tests/);
 });
 
 test('arc sampling keeps keys moving and the reverse/roundtrip seam continuous',()=>{
@@ -218,8 +218,8 @@ test('actor decodes native gzip and keeps host pivot, one cloud and sort readine
  class Vector2{set(x,y){this.x=x;this.y=y}}
  class Vector3{constructor(x=0,y=0,z=0){this.x=x;this.y=y;this.z=z}set(x,y,z){this.x=x;this.y=y;this.z=z;return this}copy(other){Object.assign(this,other);return this}}
  class SplatMesh{constructor(options){this.options=options;this.initialized=Promise.resolve();this.position=new Vector3();this.quaternion={copy(){}};this.scale={setScalar:x=>{this.size=x}}}updateGenerator(){}}
- let shader='';
- class Dyno{constructor(options){this.options=options}apply(inputs){const names=Object.fromEntries(Object.keys(inputs).map(key=>[key,key]));shader=this.options.statements({inputs:names,outputs:{gsplat:'outGsplat'}});return{gsplat:'compiled'}}}
+ let shader='',uniformInputs;
+ class Dyno{constructor(options){this.options=options}apply(inputs){uniformInputs=inputs;const names=Object.fromEntries(Object.keys(inputs).map(key=>[key,key]));shader=this.options.statements({inputs:names,outputs:{gsplat:'outGsplat'}});return{gsplat:'compiled'}}}
  const dyno={Gsplat:'Gsplat',Dyno,unindentLines:value=>value,dynoSampler2D:value=>value,
   dynoFloat:value=>({value}),dynoVec2:value=>({value}),dynoVec3:value=>({value}),dynoBlock:(_in,_out,build)=>build({gsplat:'inGsplat'})};
  const owner={SplatMesh,dyno,started:0,completed:0,attach(mesh){this.mesh=mesh},retire(mesh,cleanup){this.retired=mesh;cleanup()},inspect(){return{ready:true,startedUpdates:this.started,completedUpdates:this.completed,activeSplats:5,pending:false,failure:''}}};
@@ -230,9 +230,11 @@ test('actor decodes native gzip and keeps host pivot, one cloud and sort readine
   assert.match(shader,/int slot=cell\.x\+cell\.y\*256;/);
   assert.match(shader,/if\(int\(segment\)==2&&slot>=205&&slot<251\)/);
   assert.match(shader,/p=mix\(pivotA,pivotB,u\)\+vec2\(cos\(theta\)/);
+  assert.match(shader,/float local=mix\(1\.,moving\*\(1\.-faceEnabled\*faceMask\)\*planted,painted\)/);
   assert(!shader.includes('${'),'generated Spark code must not contain unresolved placeholders');
   const host={geometry:{parameters:{height:2}},scale:{y:1},position:new Vector3(2,1,-3),rotation:{x:0,y:.2,z:0},quaternion:{}};
   assert.equal(actor.update({arc:'extend',phase:.2,pose:'work',speaking:true,mouthFrame:2},host),false);
+  assert.equal(uniformInputs.painted.value,0);assert.equal(uniformInputs.strength.value,1,'cloud-only manifests keep full Gaussian paint');
   near(owner.mesh.position.y,0);near(owner.mesh.size,2);
   owner.started=owner.completed=1;
   assert.equal(actor.update({arc:'extend',phase:.2,pose:'work'},host),true);

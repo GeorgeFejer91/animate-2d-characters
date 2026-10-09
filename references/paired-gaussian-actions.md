@@ -97,15 +97,30 @@ author a bridge key or layer ownership instead of tuning the matcher blindly.
 The builder also saves each registered key as a **lossless native-canvas WebP**
 after clearing RGB under fully transparent pixels. The manifest's `anchors`
 section records frame dimensions, byte length and hashes, with
-`maximum_resident: 3` and `fade_seconds: 0.09`. A 32 × 32 paint plane follows
-2–32 common named landmark controls through each segment using a weighted
-local-similarity transform. The original painting stays detailed during
-ordinary motion and is unchanged at exact keys. The single Gaussian cloud
-covers the texture handoff for 90 ms on either side of each segment midpoint;
-the selected source/target image changes only at zero paint opacity. The clock
-never holds at an intermediate key. This deformation still needs visual review:
-moving paint may stretch, self-cross or miss new anatomy, and the brief cloud
-handoff can look softer. Add approved bridge paintings where that happens.
+`maximum_resident: 3` and a retained `fade_seconds` compatibility field.
+A 32 × 32 plane maps both paintings into one moving pose with inverse
+weighted local-similarity UV transforms from 2–32 common named controls.
+Their premultiplied paint blends in linear light across the whole segment;
+paint opacity stays full. The source and target paintings are exact at their
+keys, and the clock never holds at an intermediate key. An optional Gaussian
+fringe follows moving regions using the same simulation phase, with a
+`sin²(π phase)` envelope, planted-foot protection and face protection only
+when both states provide separated named `eye_right` and `eye_left` points.
+There is no fallback eye or invented face anatomy. The fringe can add a
+localized trippy halo; it does not pulse the whole painting's opacity.
+Each segment may set `paint_warp_gain` from 0 to 1; the portable default is
+0.1. The gain attenuates inverse UV displacement but is **not a topology
+proof**. Inspect native-size crossings, paint coverage and transparent
+neighbor triangles throughout each arc; approve bridge paintings and owned
+regions where motion changes occlusion or anatomy. Interior paint can still
+stretch or double-expose even when the exact keys are sharp.
+To retain audited gains across rebuilds, set `paint_warp_gains` in the source
+spec to an array of finite 0–1 values in the builder's unique segment order
+(first occurrence of each adjacent `from`/`to` pair while reading arcs).
+Its length must equal the unique segment count. The builder copies each value
+to that segment's `paint_warp_gain`; omit the array to use the runtime's 0.1
+default. The synthetic spec omits it because its cartoon motion has no audited
+gain.
 
 The builder groups each owned part into a contiguous slot range and emits
 optional `variants.<name>.trajectories` entries with `segment`, exclusive
@@ -173,16 +188,18 @@ height and floor** as the host sprite and cloud. Do not copy the sprite plane's
 width blindly: a registered full-canvas painting may be much wider. It copies
 the host tint and subtle colour breath. Each pair needs 2–32 finite common
 named controls; the runtime validates them before allocating geometry. Runtime
-loading first decodes one key
-inside actor preparation, then admits at most one queued load for nearby keys;
+loading directly decodes both keys of the first segment inside actor
+preparation, then admits at most one queued load for a nearby third key;
 three decoded/GPU frames per actor is the maximum. Subsequent anchor load or
-decode failures appear in `paint.inspect().failures`. While a painted key is
-missing or late, the actor uses its sorted cloud at full strength. Preparation
+decode failures appear in `paint.inspect().failures`. If one of a pair is
+missing or late, its available painting remains at identity rather than being
+stretched into the absent key; if both are unavailable, the actor uses its
+sorted cloud at full strength. Preparation
 or owner failure makes `actor.update()` return false for the host sprite fallback.
 The actor's `settle()` is a test helper,
 not a render-loop wait. Hosts without approved anchors can set `anchorPaint:false`
 for a cloud-only experiment; older manifests without `anchors` stay readable.
-When the spec declares up to two named `speech_landmarks`, the raster key uses
+When the spec declares up to two named `speech_landmarks`, the raster paint uses
 the same localized mouth cue and reduced-motion suppression as the cloud;
 without them, the raster stays unchanged during speech.
 

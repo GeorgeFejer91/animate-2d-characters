@@ -240,6 +240,15 @@ def build(spec_path, output):
             arc["segments"].append({"segment": lookup[pair], "start": a["time"], "end": b["time"]})
     if not 1 <= len(segments) <= 32:
         raise ValueError("Expected 1..32 segments")
+    gains = spec.get("paint_warp_gains") if "paint_warp_gains" in spec else None
+    if "paint_warp_gains" in spec and (
+        not isinstance(gains, list) or len(gains) != len(segments)
+        or any(isinstance(value, bool) or not isinstance(value, (int, float))
+               or not math.isfinite(value) or not 0 <= value <= 1 for value in gains)
+    ):
+        raise ValueError("paint_warp_gains must contain one finite 0..1 value per unique segment")
+    segment_metadata = [{"from": a, "to": b, **({"paint_warp_gain": gains[index]} if gains is not None else {})}
+                        for index, (a, b) in enumerate(segments)]
     output.mkdir(parents=True, exist_ok=True)
     anchor_frames = {}
     for index, state in enumerate(states):
@@ -295,7 +304,7 @@ def build(spec_path, output):
         if trajectories:
             variants[variant]["trajectories"] = trajectories
     manifest = {"version": 1, "id": ident, "representation": "paired-gaussian-paint", "canvas_xy": [w, h],
-                "states": states, "arcs": spec["arcs"], "segments": [{"from": a, "to": b} for a, b in segments], "variants": variants,
+                "states": states, "arcs": spec["arcs"], "segments": segment_metadata, "variants": variants,
                 "anchors": {"frames": anchor_frames, "maximum_resident": 3, "fade_seconds": .09},
                 "speech_landmarks": spec.get("speech_landmarks", []), "speech_radius_px": spec.get("speech_radius_px", [12, 8]), "speech_amplitude_px": spec.get("speech_amplitude_px", 1)}
     (output / f"{ident}.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
