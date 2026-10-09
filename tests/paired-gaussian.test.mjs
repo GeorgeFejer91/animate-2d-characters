@@ -44,7 +44,7 @@ test('builder constrains unmatched alpha-zero endpoints to their own painted par
  const result=spawnSync('python',['-m','unittest','discover','-s','tests','-p','test_paired_gaussian_builder.py'],
   {cwd:new URL('..',import.meta.url),encoding:'utf8'});
  assert.equal(result.status,0,result.stderr);
- assert.match(result.stderr,/Ran 7 tests/);
+ assert.match(result.stderr,/Ran 11 tests/);
 });
 
 test('arc sampling keeps keys moving and the reverse/roundtrip seam continuous',()=>{
@@ -229,9 +229,12 @@ test('actor decodes native gzip and keeps host pivot, one cloud and sort readine
   assert.equal(owner.mesh.options.maxSplats,256);assert.equal(textures.length,3);
   assert.match(shader,/int slot=cell\.x\+cell\.y\*256;/);
   assert.match(shader,/if\(int\(segment\)==2&&slot>=205&&slot<251\)/);
+  assert.match(shader,/u=\(phase\+\.085\*sin\(\(\.5\*\(pivotA\+pivotB\)\)\.y\*9\./);
   assert.match(shader,/p=mix\(pivotA,pivotB,u\)\+vec2\(cos\(theta\)/);
   assert.match(shader,/float flow=strength\*planted\*painted/);
-  assert.match(shader,/rgba\.a\*=strength\*mix\(1\.,\.15,painted\)/);
+  assert.match(shader,/p\+=flow\*vec2\(\.022\*sin\(p\.y\*10\./);
+  assert.match(shader,/float paintPhase=mix\(u,smoothstep\(0\.,1\.,u\),painted\)/);
+  assert.match(shader,/rgba\.a\*=strength\*mix\(1\.,\.18,painted\)/);
   assert(!shader.includes('${'),'generated Spark code must not contain unresolved placeholders');
   const host={geometry:{parameters:{height:2}},scale:{y:1},position:new Vector3(2,1,-3),rotation:{x:0,y:.2,z:0},quaternion:{}};
   assert.equal(actor.update({arc:'extend',phase:.2,pose:'work',speaking:true,mouthFrame:2},host),false);

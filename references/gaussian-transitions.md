@@ -28,6 +28,8 @@ shared owner and synthetic test. Both layers follow paired correspondences at
 simulation-owned phases, without a separate clock. Full-resolution source
 sampling does not prove endpoint coverage or anatomical correspondence; inspect
 the entire arc and repair uncovered or incorrect parts before promotion.
+Its bounded spatial phase delay and planted wave can add liquid motion while
+returning exactly to each authored key; owned props share a pivot-derived phase.
 
 ## Register the actual displayed pose
 

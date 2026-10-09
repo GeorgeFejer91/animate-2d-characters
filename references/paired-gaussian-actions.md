@@ -81,7 +81,15 @@ visible endpoints are drawn from their exact painted keys. The builder projects
 synthetic birth/death positions more than one sampling stride beyond the same
 named part's visible support to the nearest support sample.
 If that part is absent in the opposite key, the synthetic endpoint stays at
-its visible counterpart. Exact visible key paint is unchanged. This limits
+its visible counterpart by default. To make an appearing or disappearing
+whole part travel with a known contact, the source spec may set
+`"missing_part_attachments": {"held_paper": "grip"}`. The part must be named
+by a region and the chosen landmark must be a finite point in every key.
+Only a wholly absent part uses this mapping: the intact visible shape is
+translated by the contact's source-to-target displacement; its RGBA and
+visible key positions stay exact. Border births/deaths still project onto
+same-part support. Choose the same physical contact across keys; a grip
+handoff or changing occlusion still needs authored bridge art. This limits
 detached fade trails; it does not establish correct anatomy or approve an
 action's rendered appearance. The builder rejects
 part assignments over four million pair costs; split a large part into smaller
@@ -103,9 +111,17 @@ cloud and samples both full-resolution WebP paintings. Its Gaussian texture
 patches blend premultiplied linear paint over the entire segment using the
 simulation phase; paired endpoint alpha gates prevent a born or dying slot
 from sampling unrelated visible paint. Owned prop patches rotate their image
-UVs with the authored trajectory. A quiet full-body Spark halo follows behind
-the native-image patches, with a small planted-foot phase wave rather than a
-whole-body opacity pulse. The clock never holds at an intermediate key.
+UVs with the authored trajectory. For a more liquid full-frame motion, both
+layers offset the existing local segment phase by
+`0.085 sin(midpoint.y × 9 + midpoint.x × 6) sin²(π phase)`. An owned prop uses
+the midpoint of its two pivots for every slot, so it rotates as one object.
+The offset is strictly forward and zero at both keys. Native patches blend
+premultiplied paint at `smoothstep(local phase)`; a small planted wave with
+`0.022/0.007` amplitudes and `10/13` spatial frequencies uses that same clock.
+A quiet Spark halo has 0.18 of its normal strength during painted motion.
+Keep paint opacity constant; inspect the moving outline and prop in the actual
+camera because phase coherence alone does not establish anatomical quality.
+The clock never holds at an intermediate key.
 
 The patch sigma is one sampling stride with support about 2.7 strides. A
 log-transmittance partition (kernel mass 6.20) keeps overlapping regular-grid

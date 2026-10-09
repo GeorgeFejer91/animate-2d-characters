@@ -1,5 +1,14 @@
 // Native-image Gaussian patches transport the whole painting on the paired paths.
 const smooth=value=>{const t=Math.max(0,Math.min(1,value));return t*t*(3-2*t)};
+// Spatial phase delay uses the host's existing simulation phase. Its envelope
+// vanishes at both authored keys and its derivative remains positive.
+export function gaussianFlowPhase(phase,midpoint,envelope=Math.sin(Math.PI*phase)**2){
+  return phase+.085*Math.sin(midpoint[1]*9+midpoint[0]*6)*envelope;
+}
+export const gaussianFlowGlsl={
+  phase:(phase,midpoint,envelope)=>`(${phase}+.085*sin((${midpoint}).y*9.+(${midpoint}).x*6.)*(${envelope}))`,
+  wave:(p,phase)=>`vec2(.022*sin(${p}.y*10.+${phase}*3.14159265),.007*sin(${p}.x*13.-${phase}*3.14159265))`,
+};
 export function anchorBlend(manifest,sample){
   const pair=manifest.segments[sample.segment],u=Math.max(0,Math.min(1,sample.u));
   return{state:u<=.5?pair.from:pair.to,opacity:1,mix:smooth(u),effect:sample.arc===null?0:Math.sin(Math.PI*u)**2};
@@ -44,6 +53,7 @@ export async function createPaintedAnchor({THREE,owner,manifest,manifestUrl,sign
   const ownedPaths=(paired?.trajectories??[]).map(item=>`
     if(int(anchorSegment)==${item.segment}&&slot>=${item.start_slot}&&slot<${item.end_slot}){
       vec2 pivotA=vec2(${item.pivot_start.map(number)}),pivotB=vec2(${item.pivot_end.map(number)});
+      u=gaussianFlowPhase(anchorPhase,.5*(pivotA+pivotB),anchorEffect/.75);
       float angle=${number(item.angle_radians)},theta=u*angle;
       vec2 localB=endpoints.zw-pivotB;
       vec2 unturnedB=vec2(cos(angle)*localB.x+sin(angle)*localB.y,-sin(angle)*localB.x+cos(angle)*localB.y);
@@ -54,27 +64,31 @@ export async function createPaintedAnchor({THREE,owner,manifest,manifestUrl,sign
   `).join('\n');
   // Three's default key stringifies this closure, which is identical for actors
   // whose compiled shader embeds different dimensions, rows, or prop paths.
-  const programKey=JSON.stringify(['native-gaussian-paint-v1',manifest.canvas_xy,paired?.rows??1,paired?.stride??1,ownedPaths,speechRadius,speechAmplitude]);
+  const programKey=JSON.stringify(['native-gaussian-paint-v2',manifest.canvas_xy,paired?.rows??1,paired?.stride??1,ownedPaths,speechRadius,speechAmplitude]);
   material.customProgramCacheKey=()=>programKey;
   material.onBeforeCompile=shader=>{
     shader.uniforms.anchorBreath=breath;shader.uniforms.anchorMouth=mouth;shader.uniforms.anchorMouthA=mouthA;shader.uniforms.anchorMouthB=mouthB;shader.uniforms.anchorMapB=mapB;shader.uniforms.anchorMix=mix;shader.uniforms.anchorPhase=phase;
     shader.uniforms.anchorSegment=segment;shader.uniforms.anchorMode=mode;shader.uniforms.anchorEffect=effect;
     shader.uniforms.anchorXY={value:paired?.textures[0]??null};shader.uniforms.anchorStart={value:paired?.textures[1]??null};shader.uniforms.anchorEnd={value:paired?.textures[2]??null};
-    shader.vertexShader=`attribute float anchorSlot;uniform sampler2D anchorXY;uniform sampler2D anchorStart;uniform sampler2D anchorEnd;uniform float anchorSegment;uniform float anchorMode;uniform float anchorPhase;uniform float anchorEffect;varying vec2 anchorUvA;varying vec2 anchorUvB;varying vec2 anchorKernel;varying vec2 anchorPresent;
+    shader.vertexShader=`attribute float anchorSlot;uniform sampler2D anchorXY;uniform sampler2D anchorStart;uniform sampler2D anchorEnd;uniform float anchorSegment;uniform float anchorMode;uniform float anchorPhase;uniform float anchorMix;uniform float anchorEffect;varying vec2 anchorUvA;varying vec2 anchorUvB;varying vec2 anchorKernel;varying vec2 anchorPresent;varying float anchorPaintMix;
+      float gaussianFlowPhase(float phase,vec2 midpoint,float envelope){return ${gaussianFlowGlsl.phase('phase','midpoint','envelope')};}
+      vec2 gaussianFlowWave(vec2 p,float phase){return ${gaussianFlowGlsl.wave('p','phase')};}
       vec2 anchorRotate(vec2 p,float a){return vec2(cos(a)*p.x-sin(a)*p.y,sin(a)*p.x+cos(a)*p.y);}
       `+shader.vertexShader.replace('#include <begin_vertex>',`
       vec3 transformed=vec3(position);
       vec2 q=position.xy+vec2(0.,.5);
       anchorUvA=vec2(q.x*${aspect}+.5,q.y);anchorUvB=anchorUvA;anchorKernel=vec2(0.);anchorPresent=vec2(1.);
+      anchorPaintMix=anchorMix;
       if(anchorMode>.5){
         int slot=int(anchorSlot+.1);ivec2 cell=ivec2(slot%256,slot/256+int(anchorSegment)*${paired?.rows??1});
         vec4 endpoints=texelFetch(anchorXY,cell,0);
         anchorPresent=step(vec2(.001),vec2(texelFetch(anchorStart,cell,0).a,texelFetch(anchorEnd,cell,0).a));
-        float u=anchorPhase,turn=0.,endTurn=0.;vec2 p=mix(endpoints.xy,endpoints.zw,u);
+        float u=gaussianFlowPhase(anchorPhase,.5*(endpoints.xy+endpoints.zw),anchorEffect/.75),turn=0.,endTurn=0.;vec2 p=mix(endpoints.xy,endpoints.zw,u);
         ${ownedPaths}
+        anchorPaintMix=smoothstep(0.,1.,u);
         // The same planted, phase-only wave as the real Spark cloud.
         float planted=smoothstep(.025,.11,p.y);
-        p+=anchorEffect*planted*vec2(.006*sin(p.y*19.+u*3.14159265),.002*sin(p.x*23.-u*3.14159265));
+        p+=anchorEffect*planted*gaussianFlowWave(p,anchorPhase);
         float radius=${number((paired?.stride??1)/manifest.canvas_xy[1]*2.7)}*(1.+.12*anchorEffect);
         vec2 local=position.xy*radius;
         transformed=vec3(p+anchorRotate(local,turn)-vec2(0.,.5),0.);
@@ -83,7 +97,7 @@ export async function createPaintedAnchor({THREE,owner,manifest,manifestUrl,sign
         anchorKernel=position.xy*2.7;
       }
     `);
-    shader.fragmentShader='uniform float anchorBreath;uniform float anchorMouth;uniform vec2 anchorMouthA;uniform vec2 anchorMouthB;uniform sampler2D anchorMapB;uniform float anchorMix;uniform float anchorMode;uniform float anchorEffect;varying vec2 anchorUvA;varying vec2 anchorUvB;varying vec2 anchorKernel;varying vec2 anchorPresent;\n'+shader.fragmentShader.replace('#include <map_fragment>',`
+    shader.fragmentShader='uniform float anchorBreath;uniform float anchorMouth;uniform vec2 anchorMouthA;uniform vec2 anchorMouthB;uniform sampler2D anchorMapB;uniform float anchorMix;uniform float anchorMode;uniform float anchorEffect;varying vec2 anchorUvA;varying vec2 anchorUvB;varying vec2 anchorKernel;varying vec2 anchorPresent;varying float anchorPaintMix;\n'+shader.fragmentShader.replace('#include <map_fragment>',`
       vec2 uvA=anchorUvA,uvB=anchorUvB;
       vec2 faceA=(uvA-anchorMouthA)/vec2(${mouthRadiusX},${mouthRadiusY}),faceB=(uvB-anchorMouthB)/vec2(${mouthRadiusX},${mouthRadiusY});
       uvA.y+=exp(-dot(faceA,faceA)*3.5)*anchorMouth*${mouthTravel};uvB.y+=exp(-dot(faceB,faceB)*3.5)*anchorMouth*${mouthTravel};
@@ -91,7 +105,7 @@ export async function createPaintedAnchor({THREE,owner,manifest,manifestUrl,sign
       a*=step(0.,uvA.x)*step(uvA.x,1.)*step(0.,uvA.y)*step(uvA.y,1.);
       b*=step(0.,uvB.x)*step(uvB.x,1.)*step(0.,uvB.y)*step(uvB.y,1.);
       a*=anchorPresent.x;b*=anchorPresent.y;
-      float coverage=mix(a.a,b.a,anchorMix);vec3 ink=mix(a.rgb*a.a,b.rgb*b.a,anchorMix);
+      float coverage=mix(a.a,b.a,anchorPaintMix);vec3 ink=mix(a.rgb*a.a,b.rgb*b.a,anchorPaintMix);
       diffuseColor*=vec4(coverage>1e-5?ink/coverage:vec3(0.),coverage);
       // Native image samples remain sharp inside each moving Gaussian support.
       if(anchorMode>.5){

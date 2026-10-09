@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {createPaintedAnchor,anchorBlend} from '../assets/paired-gaussian/anchor.mjs';
+import {createPaintedAnchor,anchorBlend,gaussianFlowPhase,gaussianFlowGlsl} from '../assets/paired-gaussian/anchor.mjs';
 import {createGaussianOwner} from '../assets/paired-gaussian/owner.mjs';
 import {sampleArc} from '../assets/paired-gaussian/actor.mjs';
 
@@ -26,6 +26,26 @@ test('registered keys and the whole moving segment retain full paint with a loca
  near(anchorBlend(manifest,{segment:0,u:0,arc:'extend'}).effect,0);
  near(anchorBlend(manifest,{segment:0,u:1,arc:'extend'}).effect,0);
  assert.equal(anchorBlend(manifest,sampleArc(manifest,{arc:'extend-back',phase:0})).state,'gesture');
+});
+
+test('spatial phase lag remains endpoint exact and strictly forward without a new clock',()=>{
+ const midpoints=[[0,.5],[-.3,.15],[.35,.8],[.109375,.546875]];
+ for(const midpoint of midpoints){
+  near(gaussianFlowPhase(0,midpoint),0);near(gaussianFlowPhase(1,midpoint),1);
+  let previous=-1;
+  for(let tick=0;tick<=1000;tick++){
+   const phase=tick/1000,current=gaussianFlowPhase(phase,midpoint);
+   assert(current>=0&&current<=1,`phase escaped segment at ${phase}`);
+   assert(current>previous,`phase reversed at ${phase}`);
+   previous=current;
+  }
+ }
+ const a=[-.1,.4],b=[.3,.7],pivotMidpoint=[.109375,.546875];
+ assert.notEqual(gaussianFlowPhase(.5,a),gaussianFlowPhase(.5,b),'body samples may lag differently');
+ assert.notEqual(gaussianFlowPhase(.5,pivotMidpoint),gaussianFlowPhase(.5,a),
+  'the owned prop pivot supplies its common phase instead of each slot midpoint');
+ assert.match(gaussianFlowGlsl.phase('phase','midpoint','envelope'),/\.085\*sin/);
+ assert.match(gaussianFlowGlsl.wave('p','phase'),/\.022\*sin/);
 });
 
 function fakeThree(){
@@ -75,6 +95,10 @@ test('anchor cache stays at three painted frames and keeps source floor/aspect',
   assert.match(shader.vertexShader,/anchorRotate\(local,turn\)/);
   assert.match(shader.vertexShader,/anchorUvA=/);
   assert.match(shader.vertexShader,/anchorUvB=/);
+  assert.match(shader.vertexShader,/u=gaussianFlowPhase\(anchorPhase,\.5\*\(pivotA\+pivotB\),anchorEffect\/\.75\)/);
+  assert.match(shader.vertexShader,/anchorPaintMix=smoothstep\(0\.,1\.,u\)/);
+  assert.match(shader.vertexShader,/p\+=anchorEffect\*planted\*gaussianFlowWave\(p,anchorPhase\)/);
+  assert.match(shader.fragmentShader,/mix\(a\.a,b\.a,anchorPaintMix\)/);
   assert.match(shader.fragmentShader,/log\(max\(1\.-diffuseColor\.a,1e-5\)\)\*weight\/mass/);
   assert.equal(shader.uniforms.anchorXY.value,paired.textures[0]);
   assert.equal(shader.uniforms.anchorMode.value,1);

@@ -76,6 +76,71 @@ class SyntheticEndpointTests(unittest.TestCase):
                     slot = next(n for n in slots if not color_end[n, 3])
                     np.testing.assert_array_equal(end[slot], start[slot])
 
+    def test_whole_part_birth_follows_explicit_shared_attachment_without_collapsing(self):
+        source = painting([[30, 5]])
+        target = painting([[20, 5], [21, 5], [21, 6], [30, 5]])
+        first, last = state(5, 0), state(20, 50)
+        first["landmarks"]["contact"] = [5, 5]
+        last["landmarks"]["contact"] = [20, 5]
+        block = BUILDER.match(source, target, first, last, 2, 64, 16, {"prop": "contact"})
+        self.check_visible(block, source, target)
+        start, end, color_start, color_end, ranges = block
+        born = [n for n in range(*ranges["prop"]) if color_start[n, 3] == 0]
+        self.assertEqual(len(born), 3)
+        self.assertEqual(len(start), len(target[0]))
+        np.testing.assert_array_equal(start[born], end[born] - [15, 0])
+        self.assertEqual({tuple(point) for point in start[born]}, {(5., 5.), (6., 5.), (6., 6.)})
+        self.assertTrue(np.all(color_end[born, 3] == 255))
+
+    def test_whole_part_death_follows_explicit_shared_attachment_without_collapsing(self):
+        source = painting([[5, 5], [6, 5], [6, 6], [30, 5]])
+        target = painting([[30, 5]])
+        first, last = state(5, 0), state(20, 50)
+        first["landmarks"]["contact"] = [5, 5]
+        last["landmarks"]["contact"] = [20, 5]
+        block = BUILDER.match(source, target, first, last, 2, 64, 16, {"prop": "contact"})
+        self.check_visible(block, source, target)
+        start, end, color_start, color_end, ranges = block
+        dying = [n for n in range(*ranges["prop"]) if color_end[n, 3] == 0]
+        self.assertEqual(len(dying), 3)
+        self.assertEqual(len(start), len(source[0]))
+        np.testing.assert_array_equal(end[dying], start[dying] + [15, 0])
+        self.assertEqual({tuple(point) for point in end[dying]}, {(20., 5.), (21., 5.), (21., 6.)})
+        self.assertTrue(np.all(color_start[dying, 3] == 255))
+
+    def test_missing_part_attachments_rejects_bad_names_and_coordinates(self):
+        source, target = painting([[30, 5]]), painting([[20, 5], [30, 5]])
+        first, last = state(5, 0), state(20, 50)
+        first["landmarks"]["contact"] = [5, 5]
+        last["landmarks"]["contact"] = [20, 5]
+        for mapping in ([], "contact", {"ghost": "contact"}, {"prop": ""},
+                        {"prop": "missing"}, {"prop": 12}):
+            with self.subTest(mapping=mapping), self.assertRaisesRegex(ValueError, "missing_part_attachments"):
+                BUILDER.match(source, target, first, last, 2, 64, 16, mapping)
+        last["landmarks"]["contact"] = [float("nan"), 5]
+        with self.assertRaisesRegex(ValueError, "missing_part_attachments"):
+            BUILDER.match(source, target, first, last, 2, 64, 16, {"prop": "contact"})
+        last["landmarks"]["contact"] = [65, 5]
+        with self.assertRaisesRegex(ValueError, "missing_part_attachments"):
+            BUILDER.match(source, target, first, last, 2, 64, 16, {"prop": "contact"})
+
+    def test_spec_accepts_only_named_shared_missing_part_attachments(self):
+        fixture = ROOT / "assets/paired-gaussian/fixture"
+        spec = json.loads((fixture / "spec.json").read_text())
+        for entry in spec["states"]:
+            entry["file"] = str(fixture / entry["file"])
+        spec["missing_part_attachments"] = {"held_baton": "grip"}
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "spec.json"
+            path.write_text(json.dumps(spec))
+            built = BUILDER.build(path, Path(directory) / "out")
+            self.assertEqual(len(built["segments"]), 3)
+            self.assertNotIn("missing_part_attachments", built, "attachment authoring does not change runtime records")
+            spec["states"][1]["landmarks"].pop("grip")
+            path.write_text(json.dumps(spec))
+            with self.assertRaisesRegex(ValueError, "missing_part_attachments"):
+                BUILDER.build(path, Path(directory) / "invalid")
+
     def test_nearby_extrapolation_within_one_stride_is_retained(self):
         source, target = painting([[5, 5]]), painting([[5, 5], [6, 5]])
         block = BUILDER.match(source, target, state(5, 0), state(5, 0), 2, 64, 16)

@@ -126,10 +126,32 @@ def samples(image, stride):
     return xy[keep], rgba[keep]
 
 
-def match(source_sample, target_sample, source, target, stride, width, height):
+def validate_missing_part_attachments(mapping, states, width, height):
+    if not isinstance(mapping, dict):
+        raise ValueError("missing_part_attachments must map named parts to shared landmarks")
+    known_parts = {region.get("part") for state in states
+                   for region in state.get("regions", [])}
+    for part, landmark in mapping.items():
+        if (not isinstance(part, str) or not part or part not in known_parts
+                or not isinstance(landmark, str) or not landmark):
+            raise ValueError("Invalid missing_part_attachments part or landmark name")
+        for state in states:
+            point = state.get("landmarks", {}).get(landmark)
+            if (not isinstance(point, (list, tuple)) or len(point) != 2
+                    or any(isinstance(value, bool) or not isinstance(value, (int, float))
+                           or not math.isfinite(value) for value in point)
+                    or not (0 <= point[0] <= width and 0 <= point[1] <= height)):
+                raise ValueError(f"Invalid missing_part_attachments landmark {landmark!r} in {state['id']}")
+    return mapping
+
+
+def match(source_sample, target_sample, source, target, stride, width, height,
+          missing_part_attachments=None):
     ax, ac = source_sample
     bx, bc = target_sample
     ap, bp = ownership(ax, source), ownership(bx, target)
+    attachments = validate_missing_part_attachments({} if missing_part_attachments is None else missing_part_attachments,
+                                                     (source, target), width, height)
     predict = transport(ax, source, target, stride * 4)
     back = transport(bx, target, source, stride * 4)
     pairs, ranges = [], {}
@@ -176,13 +198,18 @@ def match(source_sample, target_sample, source, target, stride, width, height):
         # launch a fading sample into empty space or a neighboring part.
         born = np.array([j for i, j in pairs[first_slot:] if i is None], dtype=int)
         dying = np.array([i for i, j in pairs[first_slot:] if j is None], dtype=int)
-        for missing, support, predicted, visible in (
-            (born, ax[ai], back, bx), (dying, bx[bi], predict, ax)
+        for missing, support, predicted, visible, direction in (
+            (born, ax[ai], back, bx, -1), (dying, bx[bi], predict, ax, 1)
         ):
             if not len(missing):
                 continue
             if not len(support):
-                predicted[missing] = visible[missing]
+                landmark = attachments.get(part)
+                if landmark:
+                    delta = np.subtract(target["landmarks"][landmark], source["landmarks"][landmark])
+                    predicted[missing] = visible[missing] + direction * delta
+                else:
+                    predicted[missing] = visible[missing]
                 continue
             distance, nearest = cKDTree(support).query(predicted[missing])
             outside = distance > stride
@@ -213,6 +240,7 @@ def build(spec_path, output):
     by_id = {state["id"]: state for state in states}
     if len(by_id) != len(states) or len(states) < 2:
         raise ValueError("States need unique IDs")
+    attachments = validate_missing_part_attachments(spec.get("missing_part_attachments", {}), states, w, h)
     images = {}
     for state in states:
         source = (spec_path.parent / state["file"]).resolve()
@@ -271,7 +299,8 @@ def build(spec_path, output):
         sampled = {state["id"]: samples(images[state["id"]], stride) for state in states}
         for state in states:
             check_curved_ownership(state, sampled[state["id"]][0])
-        blocks = [match(sampled[a], sampled[b], by_id[a], by_id[b], stride, w, h) for a, b in segments]
+        blocks = [match(sampled[a], sampled[b], by_id[a], by_id[b], stride, w, h, attachments)
+                  for a, b in segments]
         count = ((max(len(block[0]) for block in blocks) + WIDTH - 1) // WIDTH) * WIDTH
         if not 1 <= count <= 20000:
             raise ValueError("Too many matched samples")

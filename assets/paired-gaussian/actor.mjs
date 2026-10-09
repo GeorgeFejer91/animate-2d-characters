@@ -1,5 +1,5 @@
 // One registered Gaussian cloud per actor. The simulation supplies all action time.
-import {createPaintedAnchor,anchorBlend} from './anchor.mjs';
+import {createPaintedAnchor,anchorBlend,gaussianFlowGlsl} from './anchor.mjs';
 const clamp=value=>Math.max(0,Math.min(1,Number.isFinite(value)?value:0));
 const RECORD_BYTES=24,TEXTURE_WIDTH=256,MAX_SAMPLES=20000,MAX_SEGMENTS=32,MAX_TRAJECTORIES=64,MAX_TRAJECTORIES_PER_SEGMENT=8;
 
@@ -135,6 +135,7 @@ export async function createGaussianActor({THREE,owner,manifestUrl,variant='desk
   const trajectoryCode=segmentExpression=>(selected.trajectories??[]).map(item=>`
     if(int(${segmentExpression})==${item.segment}&&slot>=${item.start_slot}&&slot<${item.end_slot}){
       vec2 pivotA=vec2(${item.pivot_start.map(glslNumber).join(',')}),pivotB=vec2(${item.pivot_end.map(glslNumber).join(',')});
+      u=${gaussianFlowGlsl.phase('phase','.5*(pivotA+pivotB)','envelope')};
       float angle=${glslNumber(item.angle_radians)},theta=u*angle;
       vec2 localB=endpoints.zw-pivotB;
       vec2 unturnedB=vec2(cos(angle)*localB.x+sin(angle)*localB.y,-sin(angle)*localB.x+cos(angle)*localB.y);
@@ -168,12 +169,13 @@ export async function createGaussianActor({THREE,owner,manifestUrl,variant='desk
         cell.y+=int(${i.segment})*${data.rows};
         vec4 endpoints=texelFetch(${i.xy},cell,0);
         vec4 paintA=texelFetch(${i.start},cell,0),paintB=texelFetch(${i.end},cell,0);
-        float u=clamp(${i.blend},0.,1.);
+        float phase=clamp(${i.blend},0.,1.),envelope=${i.strength}*${i.painted}/.75;
+        float u=${gaussianFlowGlsl.phase('phase','.5*(endpoints.xy+endpoints.zw)','envelope')};
         vec2 p=mix(endpoints.xy,endpoints.zw,u);
         ${trajectoryCode(i.segment)}
         float planted=smoothstep(.025,.11,p.y);
         float flow=${i.strength}*planted*${i.painted};
-        p+=flow*vec2(.006*sin(p.y*19.+u*3.14159265),.002*sin(p.x*23.-u*3.14159265));
+        p+=flow*${gaussianFlowGlsl.wave('p','phase')};
         ${o.gsplat}.scales.xy*=1.+flow*.45;
         vec2 face=(p-${i.mouthCenter})/vec2(${speechRadius[0]/manifest.canvas_xy[1]},${speechRadius[1]/manifest.canvas_xy[1]});
         float lip=exp(-dot(face,face)*3.5)*${i.mouth};
@@ -181,8 +183,9 @@ export async function createGaussianActor({THREE,owner,manifestUrl,variant='desk
         ${o.gsplat}.center=vec3(p,0.);
         vec3 linearA=mix(paintA.rgb/12.92,pow((paintA.rgb+.055)/1.055,vec3(2.4)),step(vec3(.04045),paintA.rgb));
         vec3 linearB=mix(paintB.rgb/12.92,pow((paintB.rgb+.055)/1.055,vec3(2.4)),step(vec3(.04045),paintB.rgb));
-        float alpha=mix(paintA.a,paintB.a,u);
-        vec3 premul=mix(linearA*paintA.a,linearB*paintB.a,u);
+        float paintPhase=mix(u,smoothstep(0.,1.,u),${i.painted});
+        float alpha=mix(paintA.a,paintB.a,paintPhase);
+        vec3 premul=mix(linearA*paintA.a,linearB*paintB.a,paintPhase);
         vec3 linear=alpha>1e-5?premul/alpha:vec3(0.);
         linear*=${i.tint};
         float lightness=dot(linear,vec3(.2126,.7152,.0722));
@@ -190,7 +193,7 @@ export async function createGaussianActor({THREE,owner,manifestUrl,variant='desk
         vec3 srgb=mix(linear*12.92,1.055*pow(max(linear,vec3(0.)),vec3(1./2.4))-.055,step(vec3(.0031308),linear));
         // Spark decodes Gsplat RGB as sRGB during rendering.
         ${o.gsplat}.rgba=vec4(srgb,alpha);
-        ${o.gsplat}.rgba.a*=${i.strength}*mix(1.,.15,${i.painted});
+        ${o.gsplat}.rgba.a*=${i.strength}*mix(1.,.18,${i.painted});
       `),
     }).apply({gsplat,segment,blend,strength,painted,mouth,mouthCenter,tint,breath,xy:dyno.dynoSampler2D(textures[0]),start:dyno.dynoSampler2D(textures[1]),end:dyno.dynoSampler2D(textures[2])}).gsplat}));
     mesh=new SplatMesh({maxSplats:data.count,lod:false,enableLod:false,editable:false,raycastable:false,
