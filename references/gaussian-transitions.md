@@ -23,13 +23,13 @@ back view, establish correspondences between poses, or animate joints by itself.
 
 For a bounded action with approved painted main and transition poses, the
 [paired Gaussian action starter](paired-gaussian-actions.md) supplies a reusable
-builder, native-image Gaussian texture-patch mesh, subdued single Spark cloud,
-shared owner and synthetic test. Both layers follow paired correspondences at
-simulation-owned phases, without a separate clock. Full-resolution source
+builder, native-image Gaussian texture-patch mesh, fallback Spark cloud,
+shared owner and synthetic test. The native patches follow paired correspondences at
+simulation-owned phases, without a separate clock or a second visible overlay. Full-resolution source
 sampling does not prove endpoint coverage or anatomical correspondence; inspect
 the entire arc and repair uncovered or incorrect parts before promotion.
-Its bounded spatial phase delay and planted wave can add liquid motion while
-returning exactly to each authored key; owned props share a pivot-derived phase.
+Its bounded spatial phase delay creates liquid transport while returning
+exactly to each authored key; owned props share a pivot-derived phase.
 
 ## Register the actual displayed pose
 

@@ -7,7 +7,6 @@ export function gaussianFlowPhase(phase,midpoint,envelope=Math.sin(Math.PI*phase
 }
 export const gaussianFlowGlsl={
   phase:(phase,midpoint,envelope)=>`(${phase}+.085*sin((${midpoint}).y*9.+(${midpoint}).x*6.)*(${envelope}))`,
-  wave:(p,phase)=>`vec2(.022*sin(${p}.y*10.+${phase}*3.14159265),.007*sin(${p}.x*13.-${phase}*3.14159265))`,
 };
 export function anchorBlend(manifest,sample){
   const pair=manifest.segments[sample.segment],u=Math.max(0,Math.min(1,sample.u));
@@ -64,7 +63,7 @@ export async function createPaintedAnchor({THREE,owner,manifest,manifestUrl,sign
   `).join('\n');
   // Three's default key stringifies this closure, which is identical for actors
   // whose compiled shader embeds different dimensions, rows, or prop paths.
-  const programKey=JSON.stringify(['native-gaussian-paint-v2',manifest.canvas_xy,paired?.rows??1,paired?.stride??1,ownedPaths,speechRadius,speechAmplitude]);
+  const programKey=JSON.stringify(['native-gaussian-paint-v3',manifest.canvas_xy,paired?.rows??1,paired?.stride??1,ownedPaths,speechRadius,speechAmplitude]);
   material.customProgramCacheKey=()=>programKey;
   material.onBeforeCompile=shader=>{
     shader.uniforms.anchorBreath=breath;shader.uniforms.anchorMouth=mouth;shader.uniforms.anchorMouthA=mouthA;shader.uniforms.anchorMouthB=mouthB;shader.uniforms.anchorMapB=mapB;shader.uniforms.anchorMix=mix;shader.uniforms.anchorPhase=phase;
@@ -72,7 +71,6 @@ export async function createPaintedAnchor({THREE,owner,manifest,manifestUrl,sign
     shader.uniforms.anchorXY={value:paired?.textures[0]??null};shader.uniforms.anchorStart={value:paired?.textures[1]??null};shader.uniforms.anchorEnd={value:paired?.textures[2]??null};
     shader.vertexShader=`attribute float anchorSlot;uniform sampler2D anchorXY;uniform sampler2D anchorStart;uniform sampler2D anchorEnd;uniform float anchorSegment;uniform float anchorMode;uniform float anchorPhase;uniform float anchorMix;uniform float anchorEffect;varying vec2 anchorUvA;varying vec2 anchorUvB;varying vec2 anchorKernel;varying vec2 anchorPresent;varying float anchorPaintMix;
       float gaussianFlowPhase(float phase,vec2 midpoint,float envelope){return ${gaussianFlowGlsl.phase('phase','midpoint','envelope')};}
-      vec2 gaussianFlowWave(vec2 p,float phase){return ${gaussianFlowGlsl.wave('p','phase')};}
       vec2 anchorRotate(vec2 p,float a){return vec2(cos(a)*p.x-sin(a)*p.y,sin(a)*p.x+cos(a)*p.y);}
       `+shader.vertexShader.replace('#include <begin_vertex>',`
       vec3 transformed=vec3(position);
@@ -86,10 +84,7 @@ export async function createPaintedAnchor({THREE,owner,manifest,manifestUrl,sign
         float u=gaussianFlowPhase(anchorPhase,.5*(endpoints.xy+endpoints.zw),anchorEffect/.75),turn=0.,endTurn=0.;vec2 p=mix(endpoints.xy,endpoints.zw,u);
         ${ownedPaths}
         anchorPaintMix=smoothstep(0.,1.,u);
-        // The same planted, phase-only wave as the real Spark cloud.
-        float planted=smoothstep(.025,.11,p.y);
-        p+=anchorEffect*planted*gaussianFlowWave(p,anchorPhase);
-        float radius=${number((paired?.stride??1)/manifest.canvas_xy[1]*2.7)}*(1.+.12*anchorEffect);
+        float radius=${number((paired?.stride??1)/manifest.canvas_xy[1]*2.7)};
         vec2 local=position.xy*radius;
         transformed=vec3(p+anchorRotate(local,turn)-vec2(0.,.5),0.);
         vec2 a=endpoints.xy+local,b=endpoints.zw+anchorRotate(local,endTurn);
@@ -97,7 +92,7 @@ export async function createPaintedAnchor({THREE,owner,manifest,manifestUrl,sign
         anchorKernel=position.xy*2.7;
       }
     `);
-    shader.fragmentShader='uniform float anchorBreath;uniform float anchorMouth;uniform vec2 anchorMouthA;uniform vec2 anchorMouthB;uniform sampler2D anchorMapB;uniform float anchorMix;uniform float anchorMode;uniform float anchorEffect;varying vec2 anchorUvA;varying vec2 anchorUvB;varying vec2 anchorKernel;varying vec2 anchorPresent;varying float anchorPaintMix;\n'+shader.fragmentShader.replace('#include <map_fragment>',`
+    shader.fragmentShader='uniform float anchorBreath;uniform float anchorMouth;uniform vec2 anchorMouthA;uniform vec2 anchorMouthB;uniform sampler2D anchorMapB;uniform float anchorMix;uniform float anchorMode;varying vec2 anchorUvA;varying vec2 anchorUvB;varying vec2 anchorKernel;varying vec2 anchorPresent;varying float anchorPaintMix;\n'+shader.fragmentShader.replace('#include <map_fragment>',`
       vec2 uvA=anchorUvA,uvB=anchorUvB;
       vec2 faceA=(uvA-anchorMouthA)/vec2(${mouthRadiusX},${mouthRadiusY}),faceB=(uvB-anchorMouthB)/vec2(${mouthRadiusX},${mouthRadiusY});
       uvA.y+=exp(-dot(faceA,faceA)*3.5)*anchorMouth*${mouthTravel};uvB.y+=exp(-dot(faceB,faceB)*3.5)*anchorMouth*${mouthTravel};
@@ -112,7 +107,7 @@ export async function createPaintedAnchor({THREE,owner,manifest,manifestUrl,sign
         // Optical-depth partition prevents overlapping patches from turning a
         // half-transparent edge opaque. 6.20 is the truncated grid kernel mass.
         float weight=exp(-.5*dot(anchorKernel,anchorKernel));
-        float mass=6.20*pow(1.+.12*anchorEffect,2.);
+        float mass=6.20;
         diffuseColor.a=1.-exp(log(max(1.-diffuseColor.a,1e-5))*weight/mass);
       }
       float paintLightness=dot(diffuseColor.rgb,vec3(.2126,.7152,.0722));diffuseColor.rgb=mix(vec3(paintLightness),diffuseColor.rgb,1.085+.055*anchorBreath)*(1.015+.035*anchorBreath);

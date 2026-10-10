@@ -1,5 +1,5 @@
 // One registered Gaussian cloud per actor. The simulation supplies all action time.
-import {createPaintedAnchor,anchorBlend,gaussianFlowGlsl} from './anchor.mjs';
+import {createPaintedAnchor,gaussianFlowGlsl} from './anchor.mjs';
 const clamp=value=>Math.max(0,Math.min(1,Number.isFinite(value)?value:0));
 const RECORD_BYTES=24,TEXTURE_WIDTH=256,MAX_SAMPLES=20000,MAX_SEGMENTS=32,MAX_TRAJECTORIES=64,MAX_TRAJECTORIES_PER_SEGMENT=8;
 
@@ -173,10 +173,6 @@ export async function createGaussianActor({THREE,owner,manifestUrl,variant='desk
         float u=${gaussianFlowGlsl.phase('phase','.5*(endpoints.xy+endpoints.zw)','envelope')};
         vec2 p=mix(endpoints.xy,endpoints.zw,u);
         ${trajectoryCode(i.segment)}
-        float planted=smoothstep(.025,.11,p.y);
-        float flow=${i.strength}*planted*${i.painted};
-        p+=flow*${gaussianFlowGlsl.wave('p','phase')};
-        ${o.gsplat}.scales.xy*=1.+flow*.45;
         vec2 face=(p-${i.mouthCenter})/vec2(${speechRadius[0]/manifest.canvas_xy[1]},${speechRadius[1]/manifest.canvas_xy[1]});
         float lip=exp(-dot(face,face)*3.5)*${i.mouth};
         p.y-=lip*${speechAmplitude};
@@ -193,7 +189,7 @@ export async function createGaussianActor({THREE,owner,manifestUrl,variant='desk
         vec3 srgb=mix(linear*12.92,1.055*pow(max(linear,vec3(0.)),vec3(1./2.4))-.055,step(vec3(.0031308),linear));
         // Spark decodes Gsplat RGB as sRGB during rendering.
         ${o.gsplat}.rgba=vec4(srgb,alpha);
-        ${o.gsplat}.rgba.a*=${i.strength}*mix(1.,.18,${i.painted});
+        ${o.gsplat}.rgba.a*=${i.strength};
       `),
     }).apply({gsplat,segment,blend,strength,painted,mouth,mouthCenter,tint,breath,xy:dyno.dynoSampler2D(textures[0]),start:dyno.dynoSampler2D(textures[1]),end:dyno.dynoSampler2D(textures[2])}).gsplat}));
     mesh=new SplatMesh({maxSplats:data.count,lod:false,enableLod:false,editable:false,raycastable:false,
@@ -219,7 +215,7 @@ export async function createGaussianActor({THREE,owner,manifestUrl,variant='desk
           if(!(height>0)||!(sourceMesh.scale?.y>0))throw new Error('Gaussian source height unavailable');
           const anchorOpacity=paint?.update(sample,sourceMesh,true,{...state,reducedMotion})??0;
           painted.value=anchorOpacity>0?1:0;
-          strength.value=anchorOpacity>0?(reducedMotion?0:.75*anchorBlend(manifest,sample).effect):1;
+          strength.value=anchorOpacity>0?0:1;
           const color=sourceMesh.material?.color,paintBreath=sourceMesh.material?.userData?.breath?.value??0;
           const key=[sample.segment,sample.u,anchorOpacity,state.speaking,state.mouthFrame,reducedMotion,sourceMesh.position.x,sourceMesh.position.y,sourceMesh.position.z,sourceMesh.scale.y,sourceMesh.rotation.x,sourceMesh.rotation.y,sourceMesh.rotation.z,color?.r,color?.g,color?.b,paintBreath].join(':');
           if(key!==lastKey){
@@ -241,11 +237,12 @@ export async function createGaussianActor({THREE,owner,manifestUrl,variant='desk
             mesh.needsUpdate=true;lastKey=key;
           }
           mesh.visible=strength.value>.001;
-          if(readyAfterSort===null)readyAfterSort=owner.inspect().startedUpdates+1;
+          if(mesh.visible&&readyAfterSort===null)readyAfterSort=owner.inspect().startedUpdates+1;
+          if(!mesh.visible)readyAfterSort=null;
           return api.inspect().visible;
         }catch(error){failure=error.message||String(error);mesh.visible=false;paint?.update(null,sourceMesh,false);return false}
       },
-      inspect(){const status=owner.inspect(),anchor=paint?.inspect()??null;return{ready:!disposed&&!failure&&status.ready,visible:!disposed&&!failure&&status.ready&&(anchor?.visible||mesh.visible&&readyAfterSort!==null&&status.completedUpdates>=readyAfterSort&&status.activeSplats>0),pending:status.pending,failure:failure||status.failure,variant,id:manifest.id,count:data.count,segmentCount:data.segments,bytes:selected.decoded_bytes,segment:segment.value,blend:blend.value,anchor,trajectoryCount:selected.trajectories?.length??0,activeTrajectories:selected.trajectories?.filter(item=>item.segment===segment.value)??[]}},
+      inspect(){const status=owner.inspect(),anchor=paint?.inspect()??null;return{ready:!disposed&&!failure&&status.ready,visible:!disposed&&!failure&&status.ready&&(anchor?.visible||mesh.visible&&readyAfterSort!==null&&status.completedUpdates>=readyAfterSort&&status.activeSplats>0),cloudVisible:!disposed&&mesh.visible,pending:status.pending,failure:failure||status.failure,variant,id:manifest.id,count:data.count,segmentCount:data.segments,bytes:selected.decoded_bytes,segment:segment.value,blend:blend.value,anchor,trajectoryCount:selected.trajectories?.length??0,activeTrajectories:selected.trajectories?.filter(item=>item.segment===segment.value)??[]}},
       settle:async()=>{await paint?.settle()},
       dispose(){if(disposed)return;disposed=true;signal?.removeEventListener?.('abort',onAbort);paint?.dispose();owner.retire(mesh,releaseTextures)},
     };

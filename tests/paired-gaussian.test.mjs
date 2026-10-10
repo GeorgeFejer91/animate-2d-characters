@@ -211,19 +211,27 @@ test('shared owner caps sort cadence and disposes after an in-flight update',asy
 });
 
 test('actor decodes native gzip and keeps host pivot, one cloud and sort readiness',async()=>{
- const original=globalThis.fetch;
+ const original=globalThis.fetch,originalBitmap=globalThis.createImageBitmap;
  globalThis.fetch=async url=>{const bytes=readFileSync(new URL(url));return{ok:true,json:async()=>JSON.parse(bytes.toString()),arrayBuffer:async()=>bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength)}};
+ globalThis.createImageBitmap=async()=>({width:64,height:64,close(){}});
  const textures=[];
  class DataTexture{constructor(data,w,h){this.data=data;this.width=w;this.height=h;this.disposals=0;textures.push(this)}dispose(){this.disposals++}}
  class Vector2{set(x,y){this.x=x;this.y=y}}
  class Vector3{constructor(x=0,y=0,z=0){this.x=x;this.y=y;this.z=z}set(x,y,z){this.x=x;this.y=y;this.z=z;return this}copy(other){Object.assign(this,other);return this}}
+ class Attribute{constructor(array,itemSize){this.array=array;this.itemSize=itemSize}}
+ class PlaneGeometry{constructor(width,height){this.parameters={width,height};this.attributes={position:new Attribute(new Float32Array(12),3)};this.index={}}setAttribute(key,value){this.attributes[key]=value}dispose(){}}
+ class InstancedBufferGeometry extends PlaneGeometry{}
+ class MeshBasicMaterial{constructor(options){Object.assign(this,options);this.color={copy(){}};this.userData={}}dispose(){}}
+ class Texture{dispose(){}}
+ class Mesh{constructor(geometry,material){this.geometry=geometry;this.material=material;this.position=new Vector3();this.quaternion={copy(){}};this.scale={setScalar(){}};this.userData={}}}
  class SplatMesh{constructor(options){this.options=options;this.initialized=Promise.resolve();this.position=new Vector3();this.quaternion={copy(){}};this.scale={setScalar:x=>{this.size=x}}}updateGenerator(){}}
  let shader='',uniformInputs;
  class Dyno{constructor(options){this.options=options}apply(inputs){uniformInputs=inputs;const names=Object.fromEntries(Object.keys(inputs).map(key=>[key,key]));shader=this.options.statements({inputs:names,outputs:{gsplat:'outGsplat'}});return{gsplat:'compiled'}}}
  const dyno={Gsplat:'Gsplat',Dyno,unindentLines:value=>value,dynoSampler2D:value=>value,
   dynoFloat:value=>({value}),dynoVec2:value=>({value}),dynoVec3:value=>({value}),dynoBlock:(_in,_out,build)=>build({gsplat:'inGsplat'})};
- const owner={SplatMesh,dyno,started:0,completed:0,attach(mesh){this.mesh=mesh},retire(mesh,cleanup){this.retired=mesh;cleanup()},inspect(){return{ready:true,startedUpdates:this.started,completedUpdates:this.completed,activeSplats:5,pending:false,failure:''}}};
- const THREE={DataTexture,Vector2,Vector3,Quaternion:class{},Color:class{},FloatType:'float',UnsignedByteType:'byte',RGBAFormat:'rgba',NearestFilter:'nearest',ClampToEdgeWrapping:'clamp'};
+ const painted=new Set();
+ const owner={SplatMesh,dyno,started:0,completed:0,attach(mesh){this.mesh=mesh},retire(mesh,cleanup){this.retired=mesh;cleanup()},attachPaint(mesh){painted.add(mesh)},retirePaint(mesh){painted.delete(mesh)},inspect(){return{ready:true,startedUpdates:this.started,completedUpdates:this.completed,activeSplats:5,pending:false,failure:''}}};
+ const THREE={DataTexture,Vector2,Vector3,Quaternion:class{},Color:class{},PlaneGeometry,InstancedBufferGeometry,Float32BufferAttribute:Attribute,InstancedBufferAttribute:Attribute,MeshBasicMaterial,Texture,Mesh,DoubleSide:2,SRGBColorSpace:'srgb',LinearFilter:'linear',FloatType:'float',UnsignedByteType:'byte',RGBAFormat:'rgba',NearestFilter:'nearest',ClampToEdgeWrapping:'clamp'};
  try{
   const actor=await createGaussianActor({THREE,owner,manifestUrl:new URL('synthetic-action.json',fixture),anchorPaint:false});
   assert.equal(owner.mesh.options.maxSplats,256);assert.equal(textures.length,3);
@@ -231,19 +239,29 @@ test('actor decodes native gzip and keeps host pivot, one cloud and sort readine
   assert.match(shader,/if\(int\(segment\)==2&&slot>=205&&slot<251\)/);
   assert.match(shader,/u=\(phase\+\.085\*sin\(\(\.5\*\(pivotA\+pivotB\)\)\.y\*9\./);
   assert.match(shader,/p=mix\(pivotA,pivotB,u\)\+vec2\(cos\(theta\)/);
-  assert.match(shader,/float flow=strength\*planted\*painted/);
-  assert.match(shader,/p\+=flow\*vec2\(\.022\*sin\(p\.y\*10\./);
+  assert.doesNotMatch(shader,/float flow=|planted|p\+=flow|scales\.xy\*=/);
   assert.match(shader,/float paintPhase=mix\(u,smoothstep\(0\.,1\.,u\),painted\)/);
-  assert.match(shader,/rgba\.a\*=strength\*mix\(1\.,\.18,painted\)/);
+  assert.match(shader,/rgba\.a\*=strength;/);
   assert(!shader.includes('${'),'generated Spark code must not contain unresolved placeholders');
-  const host={geometry:{parameters:{height:2}},scale:{y:1},position:new Vector3(2,1,-3),rotation:{x:0,y:.2,z:0},quaternion:{}};
+  const host={geometry:{parameters:{height:2}},scale:{y:1},position:new Vector3(2,1,-3),rotation:{x:0,y:.2,z:0},quaternion:{},material:{color:{},userData:{}}};
   assert.equal(actor.update({arc:'extend',phase:.2,pose:'work',speaking:true,mouthFrame:2},host),false);
   assert.equal(uniformInputs.painted.value,0);assert.equal(uniformInputs.strength.value,1,'cloud-only manifests keep full Gaussian paint');
   near(owner.mesh.position.y,0);near(owner.mesh.size,2);
   owner.started=owner.completed=1;
   assert.equal(actor.update({arc:'extend',phase:.2,pose:'work'},host),true);
+  assert.equal(actor.inspect().cloudVisible,true);
   assert.equal(actor.inspect().trajectoryCount,3);
   assert.equal(actor.inspect().activeTrajectories.length,1);
-  actor.dispose();assert.equal(owner.retired,owner.mesh);assert(textures.every(texture=>texture.disposals===1));
- }finally{globalThis.fetch=original}
+  actor.dispose();assert.equal(owner.retired,owner.mesh);
+  const textured=await createGaussianActor({THREE,owner,manifestUrl:new URL('synthetic-action.json',fixture)});
+  assert.equal(textured.update({arc:'extend',phase:.2,pose:'work'},host),true);
+  assert.equal(uniformInputs.painted.value,1);
+  assert.equal(uniformInputs.strength.value,0,'available native painting hides the duplicate Spark cloud');
+  assert.equal(textured.inspect().cloudVisible,false);
+  assert.equal(owner.mesh.visible,false);
+  assert.equal(textured.inspect().anchor.opacity,1);
+  assert.equal(painted.size,1);
+  textured.dispose();assert.equal(painted.size,0);
+  assert(textures.every(texture=>texture.disposals===1));
+ }finally{globalThis.fetch=original;globalThis.createImageBitmap=originalBitmap}
 });

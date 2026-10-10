@@ -9,7 +9,7 @@ const fixture=new URL('../assets/paired-gaussian/fixture/built/',import.meta.url
 const manifest=JSON.parse(readFileSync(new URL('synthetic-action.json',fixture)));
 const near=(a,b)=>assert.ok(Math.abs(a-b)<1e-6,`${a} != ${b}`);
 
-test('registered keys and the whole moving segment retain full paint with a local fringe cue',()=>{
+test('registered keys and the whole moving segment retain full paint',()=>{
  const work=anchorBlend(manifest,sampleArc(manifest,{arc:null,pose:'work'}));
  assert.deepEqual(work,{state:'work',opacity:1,mix:0,effect:0});
  const first=anchorBlend(manifest,sampleArc(manifest,{arc:'extend',phase:0}));
@@ -45,7 +45,7 @@ test('spatial phase lag remains endpoint exact and strictly forward without a ne
  assert.notEqual(gaussianFlowPhase(.5,pivotMidpoint),gaussianFlowPhase(.5,a),
   'the owned prop pivot supplies its common phase instead of each slot midpoint');
  assert.match(gaussianFlowGlsl.phase('phase','midpoint','envelope'),/\.085\*sin/);
- assert.match(gaussianFlowGlsl.wave('p','phase'),/\.022\*sin/);
+ assert.equal(gaussianFlowGlsl.wave,undefined,'no positional oscillation helper is exported');
 });
 
 function fakeThree(){
@@ -97,9 +97,13 @@ test('anchor cache stays at three painted frames and keeps source floor/aspect',
   assert.match(shader.vertexShader,/anchorUvB=/);
   assert.match(shader.vertexShader,/u=gaussianFlowPhase\(anchorPhase,\.5\*\(pivotA\+pivotB\),anchorEffect\/\.75\)/);
   assert.match(shader.vertexShader,/anchorPaintMix=smoothstep\(0\.,1\.,u\)/);
-  assert.match(shader.vertexShader,/p\+=anchorEffect\*planted\*gaussianFlowWave\(p,anchorPhase\)/);
+  assert.match(shader.vertexShader,/float radius=0\.084375/);
+  assert.doesNotMatch(shader.vertexShader,/gaussianFlowWave|planted|p\+=anchorEffect|\.12\*anchorEffect/);
   assert.match(shader.fragmentShader,/mix\(a\.a,b\.a,anchorPaintMix\)/);
   assert.match(shader.fragmentShader,/log\(max\(1\.-diffuseColor\.a,1e-5\)\)\*weight\/mass/);
+  assert.match(shader.fragmentShader,/float mass=6\.20;/);
+  assert.doesNotMatch(shader.fragmentShader,/anchorEffect/);
+  assert.match(plane.material.customProgramCacheKey(),/native-gaussian-paint-v3/);
   assert.equal(shader.uniforms.anchorXY.value,paired.textures[0]);
   assert.equal(shader.uniforms.anchorMode.value,1);
   near(shader.uniforms.anchorMouth.value,.9);
@@ -111,6 +115,7 @@ test('anchor cache stays at three painted frames and keeps source floor/aspect',
   assert.equal(paint.inspect().technique,'native-texture-gaussians');
   paint.update({segment:0,u:0,arc:null},source,true,{speaking:true,mouthFrame:2,reducedMotion:true});
   near(shader.uniforms.anchorMouth.value,0);
+  near(shader.uniforms.anchorEffect.value,0);
   for(const sample of [{segment:0,u:1,arc:null},{segment:1,u:1,arc:null},{segment:3,u:1,arc:null}]){
    paint.update(sample,source,true);await paint.settle();paint.update(sample,source,true);
    assert(paint.inspect().resident<=3);

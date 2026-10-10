@@ -106,20 +106,20 @@ The builder also saves each registered key as a **lossless native-canvas WebP**
 after clearing RGB under fully transparent pixels. The manifest's `anchors`
 section records frame dimensions, byte length and hashes, with
 `maximum_resident: 3` and a retained `fade_seconds` compatibility field.
-One instanced patch mesh uses the same packed paired XY positions as the Spark
-cloud and samples both full-resolution WebP paintings. Its Gaussian texture
+One instanced patch mesh uses the packed paired XY positions and samples both
+full-resolution WebP paintings. Its Gaussian texture
 patches blend premultiplied linear paint over the entire segment using the
 simulation phase; paired endpoint alpha gates prevent a born or dying slot
 from sampling unrelated visible paint. Owned prop patches rotate their image
-UVs with the authored trajectory. For a more liquid full-frame motion, both
-layers offset the existing local segment phase by
+UVs with the authored trajectory. For liquid full-frame motion, the native
+patches offset the existing local segment phase by
 `0.085 sin(midpoint.y × 9 + midpoint.x × 6) sin²(π phase)`. An owned prop uses
 the midpoint of its two pivots for every slot, so it rotates as one object.
-The offset is strictly forward and zero at both keys. Native patches blend
-premultiplied paint at `smoothstep(local phase)`; a small planted wave with
-`0.022/0.007` amplitudes and `10/13` spatial frequencies uses that same clock.
-A quiet Spark halo has 0.18 of its normal strength during painted motion.
-Keep paint opacity constant; inspect the moving outline and prop in the actual
+The local phase remains strictly increasing and equals the authored phase at both keys. Native patches blend
+premultiplied paint at `smoothstep(local phase)` with fixed Gaussian support
+and full layer opacity. There is no positional oscillation or duplicate Spark overlay
+while native paint is available; the Spark cloud is a fallback if paint is
+unavailable. Inspect the moving outline and prop in the actual
 camera because phase coherence alone does not establish anatomical quality.
 The clock never holds at an intermediate key.
 
@@ -195,7 +195,7 @@ paint textures per slot/segment, while one instanced patch mesh samples the
 original WebPs on those same paths. Paint interpolates in premultiplied linear
 light; the Spark path encodes its colour back to sRGB because Spark decodes it again.
 There is no two-cloud crossfade, exposed midpoint image swap or unowned animation loop.
-Reduced motion suppresses the small phase wave and optional speech deformation.
+Reduced motion suppresses the spatial phase delay and optional speech deformation.
 
 The patch mesh uses the manifest canvas aspect at the **same center, rotation,
 height and floor** as the host sprite and cloud. Do not copy the sprite plane's
