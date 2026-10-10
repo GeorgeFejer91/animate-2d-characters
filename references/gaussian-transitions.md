@@ -107,6 +107,16 @@ or a preparation that misses the chosen handoff, retain the sprite for that
 encounter instead of replacing it abruptly mid-line. The existing event receipt
 still decides when the scene releases; restore the sprite and its material state.
 
+When a body dissolve is unwanted, hand over ownership between registered flat
+representations after the incoming body's own sorted frame is ready. Keep the
+body opaque while depth expands and flattens; use the scene clock for geometry,
+not complementary body alpha. Two half-opacity layers leave only 75% combined
+coverage even where both paintings are opaque. Keep the original solid fallback
+until readiness, and check the flat handover for a visible contour or texture
+jump. A prior tunnel-only or other-actor sort does not prove body readiness.
+Follow the [foreground fade diagnosis](paired-gaussian-actions.md#keep-room-fades-behind-the-painting)
+when room geometry appears through an otherwise opaque morph.
+
 ## Articulate a painted Gaussian mouth from recorded speech
 
 Bind the mouth track to the approved recording's exact identity and byte hash.

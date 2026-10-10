@@ -106,6 +106,10 @@ test('anchor cache stays at three painted frames and keeps source floor/aspect',
   assert.match(plane.material.customProgramCacheKey(),/native-gaussian-paint-v3/);
   assert.equal(shader.uniforms.anchorXY.value,paired.textures[0]);
   assert.equal(shader.uniforms.anchorMode.value,1);
+  source.renderOrder=200;source.material.depthTest=false;paint.update({segment:0,u:0,arc:null},source,true,{speaking:true,mouthFrame:2});
+  assert.equal(plane.renderOrder,200);assert.equal(plane.material.depthTest,false);assert.equal(plane.material.opacity,1);
+  source.renderOrder=0;source.material.depthTest=true;paint.update({segment:0,u:0,arc:null},source,true,{speaking:true,mouthFrame:2});
+  assert.equal(plane.renderOrder,0);assert.equal(plane.material.depthTest,true);
   near(shader.uniforms.anchorMouth.value,.9);
   near(shader.uniforms.anchorMouthA.value.x,.5);
   near(shader.uniforms.anchorMouthA.value.y,1-17/64);

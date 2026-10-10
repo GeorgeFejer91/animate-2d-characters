@@ -151,6 +151,21 @@ unavailable. Inspect the moving outline and prop in the actual
 camera because phase coherence alone does not establish anatomical quality.
 The clock never holds at an intermediate key.
 
+### Keep room fades behind the painting
+
+A solid morph can still look like a dissolve when a newly transparent floor,
+desk or ceiling sorts after the character. Inspect draw order before changing
+the correspondence. Native patches inherit the source's `renderOrder` and
+`material.depthTest` every update, including restoration and the missing-key
+fallback. Keep layer opacity at one; preserve the artwork's intrinsic alpha.
+For an explicitly isolated encounter, the host may put its speaker in a
+foreground layer for the whole entry/hold/release. Restore ordinary world depth
+after the encounter; do not make city sprites visible through opaque buildings.
+A shared Spark batch has one depth policy, so the host must coordinate that
+policy with its admitted actors rather than treating each SplatMesh as a separate
+Three transparent draw. Test native paint, cloud fallback and reduced motion
+against actual fading geometry, including a still-visible room during release.
+
 This is **native painted texture transport on Gaussian kernels**, with a Spark
 cloud fallback; it is not a trained dynamic 3D reconstruction. Sharpness comes
 from sampling the original neighboring paintings throughout the transition,

@@ -160,6 +160,7 @@ export async function createPaintedAnchor({THREE,owner,manifest,manifestUrl,sign
       pump();
       const height=source.geometry.parameters.height*source.scale.y;
       mesh.position.copy(source.position);mesh.quaternion.copy(source.quaternion);mesh.scale.setScalar(height);
+      mesh.renderOrder=source.renderOrder??0;material.depthTest=source.material?.depthTest??true;
       material.color.copy(source.material?.color??new THREE.Color(1,1,1));breath.value=source.material?.userData?.breath?.value??0;
       const a=cache.get(pair.from),b=cache.get(pair.to),entry=a??b;
       if(!entry)return 0;
