@@ -234,6 +234,28 @@ painted key can be ready before a Spark sort; moving cloud visibility requires a
 completed owner sort after the first visible actor update and active splats. A
 false return also covers loading, hidden state and failure. Let the
 host's existing event receipt and generation token handle cancellation/replay.
+
+For a stationary sprite that has only one fallback painting, admit a prepared
+action at that exact painting. Other main poses are not automatically safe:
+replacing a raised hand with the fallback resting hand still jumps. Apply the
+same rule when a bounded actor slot retires. If dialogue freezes background
+actions, a background actor can remain between keys indefinitely; let a fully
+off-camera billboard release its slot for the next visible speaker. Use its
+complete visible bounds, keep visible edges resident, and skip preparation for
+off-camera actors or actors without a supported action. Preserve simulation
+time through these resource decisions.
+
+Register an authored sequence with one uniform body scale. Independently fitting
+each pose's total silhouette height makes a raised arm shrink the whole person.
+Align the planted floor by translation and review the original painting beside
+every bridge. Register horizontal shoe positions independently of a changing
+hand silhouette. Measure arm/grip controls and owned prop masks on the registered
+paint; reused estimates can miss the moving object and match it into unrelated
+body paint, creating a second readable hand or prop at the midpoint.
+Test asynchronous image loading with normal playback as well as
+delayed updates; jumping many action intervals instantly is a different stress
+case from ordinary playback and may legitimately retain the host fallback.
+
 Retiring an actor detaches it immediately and defers mesh/texture disposal until
 the pending sort settles; dispose actors before disposing their shared owner.
 The owner reports failure through `inspect().failure`, hides splats and leaves
