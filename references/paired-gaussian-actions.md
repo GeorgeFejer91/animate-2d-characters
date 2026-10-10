@@ -34,6 +34,24 @@ main pose, then traverses the next authored arc. A repeated intent must not rese
 the active phase. Speech or a phone cue is a separate small overlay signal and
 must not restart body motion.
 
+Treat the **geometry phase** and **paint blend** separately. The starter moves
+centers with the continuous local phase and uses smoothstep only for mixing
+source/target paint. Easing every geometric interval to zero speed creates a
+robotic sequence of stops. A running clock alone also cannot guarantee smooth
+velocity: the starter's piecewise paths are not a general C1 spline. Inspect the
+direction and speed on both sides of each key. Redistribute key times or author
+a compatible bridge when a short interval or a sharp path corner causes a jump;
+preserve the intended whole-action duration. Inspect a roundtrip's turning pose
+and the final-to-first interval too. A main pose may hold when the event needs
+it, but a transition key is a continuity checkpoint, not a scheduled pause.
+
+Do not reverse or restart an unfinished action because another speech receipt
+arrived. Keep the body arc's identity and elapsed phase; retarget at its next safe
+main endpoint. A one-shot finishes its authored recovery before ordinary motion
+resumes. Route-driven walking still advances by actual ground displacement;
+neither speech time nor Gaussian interpolation may advance feet blocked by the
+world. See [narrative action rigging](narrative-action-rigging.md) for cue ownership.
+
 The JSON spec has `id`, `canvas_xy`, `variants` (names to sampling strides),
 `states`, and `arcs`. Each state names its PNG and **arbitrary named XY
 landmarks**. Adjacent states need common landmark names. Optional `regions`
@@ -102,6 +120,16 @@ face, cloth, hand and prop at native rendered size on light/dark backgrounds.
 If material crosses itself, changes occlusion or lacks a corresponding limb,
 author a bridge key or layer ownership instead of tuning the matcher blindly.
 
+Apply transport tactically according to what changes. A compatible face, sleeve
+or torso can flow continuously along its owned correspondence. A crossing hand,
+grip change or newly exposed limb needs a painted bridge that establishes which
+part is in front and where the same physical part continues. A matcher finding
+a low-cost pair does not establish that identity. Keep unrelated parts out of
+the assignment; attachment landmarks handle missing-part motion, not unseen
+anatomy. If the requested effect belongs to a small region, such as a stamp on a
+document, transport only that named region and keep the paper, print and hands
+in their existing representation.
+
 The builder also saves each registered key as a **lossless native-canvas WebP**
 after clearing RGB under fully transparent pixels. The manifest's `anchors`
 section records frame dimensions, byte length and hashes, with
@@ -122,6 +150,19 @@ while native paint is available; the Spark cloud is a fallback if paint is
 unavailable. Inspect the moving outline and prop in the actual
 camera because phase coherence alone does not establish anatomical quality.
 The clock never holds at an intermediate key.
+
+This is **native painted texture transport on Gaussian kernels**, with a Spark
+cloud fallback; it is not a trained dynamic 3D reconstruction. Sharpness comes
+from sampling the original neighboring paintings throughout the transition,
+not increasing point-cloud opacity or returning to a static image only near
+the endpoints. Keep Gaussian support fixed as the arc advances. Increasing
+sigma, blurring each generated frame, or fading a sharp plane over an already
+visible cloud can hide a correspondence defect while adding persistent softness
+or doubled contours. Compare eyes, print, fingers and cloth to the actual source
+at the intended projected size. The starter's phase-delay amplitude is bounded:
+it vanishes at the keys and does not reverse time. If adapting its formula,
+verify monotonic phase and exact endpoints; a decorative displacement wave is
+a different motion effect.
 
 The patch sigma is one sampling stride with support about 2.7 strides. A
 log-transmittance partition (kernel mass 6.20) keeps overlapping regular-grid
@@ -197,6 +238,15 @@ light; the Spark path encodes its colour back to sRGB because Spark decodes it a
 There is no two-cloud crossfade, exposed midpoint image swap or unowned animation loop.
 Reduced motion suppresses the spatial phase delay and optional speech deformation.
 
+When injecting actor-specific GLSL through `onBeforeCompile`, provide an explicit
+`customProgramCacheKey` containing every embedded constant that changes the
+program: canvas aspect, lookup rows/stride, owned trajectory code and localized
+speech parameters. Three's default closure-text key does not see captured values;
+one actor can otherwise reuse another actor's program. Changing uniforms does
+not require a new key. Emit typed float literals for float expressions, including
+square-canvas ratios such as `1.00000000`; inspect compile errors in the real
+pinned runtime as well as CPU tests.
+
 The patch mesh uses the manifest canvas aspect at the **same center, rotation,
 height and floor** as the host sprite and cloud. Do not copy the sprite plane's
 width blindly: a registered full-canvas painting may be much wider. It copies
@@ -263,3 +313,57 @@ the sprite as fallback. Measure actual device frame time and inspect the exact
 paint in motion before promotion. The synthetic tests establish deterministic
 bytes, seam invariants, bounded decoding and lifetime behavior, not visual
 quality or mobile performance.
+
+## Diagnose flicker before changing the look
+
+Capture ordered frames and a trace of arc/segment/local phase, selected anchor
+pair, native/cloud visibility, readiness and cue generation around the reported
+moment. Reproduce at ordinary speed, then scrub or slow that same interval.
+Renderer FPS and isolated endpoint screenshots cannot locate a rapid transition.
+
+| Observed discontinuity | Check and correction |
+| --- | --- |
+| Pose accelerates briefly, stops at a bridge, or snaps on wrap | Check key times, per-key geometry easing, repeated intent resets and reverse/loop seams. Keep one advancing arc and repair timing or compatible bridge paths. |
+| Hand changes side, prop doubles, or face melts through unrelated paint | Inspect part masks, physical landmark identity, grip axis and occlusion order. Repair ownership or add approved bridge art; extra blur or slower playback cannot fix a wrong correspondence. |
+| Thin edges disappear, become solid, or shimmer between keys | Inspect full-frame sampling coverage, endpoint alpha gates, hidden RGB and kernel overlap on light/dark backgrounds. Keep premultiplied linear paint, fixed support and one visible representation. The overlap partition is approximate. |
+| One actor breaks only after another is displayed | Compare program cache keys and embedded canvas/lookup/trajectory constants; test both preparation orders. Use an explicit key for the compiled program. |
+| A sharp frame pops when an image loads or an actor slot changes | Trace the available anchor pair, sorted-cloud readiness and admission/retirement pose. Warm the needed pair through the host queue, hand over at the exact fallback painting and keep stale completions detached. |
+
+Preserve the accepted liquid look while repairing the identified fault. Do not
+replace full-frame transport with short intermittent dissolves, freeze every
+bridge, add camera shake, random jitter, positional wiggle or a second trail
+layer to conceal it. A deliberate pose change can be surreal while its paint,
+contact and timing remain continuous.
+
+## Validate the complete action and cast
+
+Run the portable Node suites above and
+`python -m unittest discover -s tests -p test_paired_gaussian_builder.py` for
+packing, endpoint, ownership, cache and lifecycle feasibility. These tests do
+not establish visual acceptance. Use the host's existing preview and playtest
+tools for the following observations rather than building another test platform:
+
+- Compare exact keys to the registered source at native close-up size. Inspect
+  every interval at normal and slow playback, including midpoint, crossing,
+  prop turn, turn-back and loop closure. Check the complete silhouette and
+  partially transparent edges on light and dark backgrounds.
+- Exercise every character using its own manifest. Test multiple visible actors
+  and both preparation orders where the host admits them; a single actor cannot
+  reveal shared-program contamination. Inspect actual game camera angles,
+  desktop/mobile framing and the intended physical pixel density.
+- Exercise repeated intent, consecutive speech cues, pause/hidden/resume,
+  replay, delayed or failed neighbor decoding, off-camera slot retirement and
+  exit during an in-flight sort. Check fallback registration, neutral mouth,
+  restored material/depth state and bounded resource residency.
+- Record source/manifest/runtime revisions, renderer, viewport/DPR and device
+  context beside rendered evidence. Label synthetic fixtures, natural gameplay,
+  emulation, physical devices and listening evidence separately. Measure actual
+  host frame/input cost and memory; starter limits are not universal budgets.
+
+The source-pinned [Germany Simulator action implementation at `ee1838a`](https://github.com/GeorgeFejer91/GermanySimulator/tree/ee1838a98d3d7ccb918c940e8c97df6089c67ef7)
+records the [native patch renderer](https://github.com/GeorgeFejer91/GermanySimulator/blob/ee1838a98d3d7ccb918c940e8c97df6089c67ef7/buergeramt-painted-anchor.js),
+[simulation clock](https://github.com/GeorgeFejer91/GermanySimulator/blob/ee1838a98d3d7ccb918c940e8c97df6089c67ef7/buergeramt-animation-clock.js)
+and [scene ownership and measured limits](https://github.com/GeorgeFejer91/GermanySimulator/blob/ee1838a98d3d7ccb918c940e8c97df6089c67ef7/For-AI/BUERGERAMT.md).
+It motivates the timing, full-cast cache, sharp-paint and handover guidance here.
+Its artwork, voice recordings and acceptance evidence remain in that project;
+the portable synthetic fixture does not inherit the production cast's approval.

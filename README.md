@@ -18,6 +18,8 @@ Invoke `$animate-2d-characters` with the actual character artwork, required dire
 
 `references/gaussian-transitions.md` covers painted 2D-to-3D Gaussian reveals and procedural volumetric tunnels: exact source registration, detail-aware sampling, GPU deformation, shared scene depth, cancellation and safe sort teardown. It draws on a shipped Spark 2.3.1 / Three.js r186 scene and distinguishes a bounded painted sculpture from a reconstructed or rigged character. The optional technique adds no dependency to ordinary sprite workflows.
 
+For smooth liquid movement between sharp painted anchors, `references/paired-gaussian-actions.md` includes a deterministic builder and portable native-image Gaussian texture-patch renderer with a Spark fallback. Main poses and approved transition bridges define the action; owned parts and curved prop trajectories define the correspondence. The guide covers continuous timing without intermediate stops, full-resolution paint and alpha, bounded phase delay without wiggle or trails, cross-actor shader cache keys, readiness handovers and targeted flicker diagnosis. Its synthetic fixture checks feasibility, not production anatomy or performance.
+
 Game reactions preserve separate meanings for idle, waving, jumping, failure, waiting, working, review and looking. Existing approved art comes first. Walking uses ground distance; prop actions and reactions use time. Reactions finish turns and preserve landing, routes, prop ownership and accepted walk pixels.
 
 Ordinary game animation works without the Pets plugin. ChatGPT Pets uploads still require the installed Pets skill and its authoritative tools. Do not infer that a successful numerical check certifies visual continuity.
@@ -31,5 +33,7 @@ Read `references/dense-sampling.md` to choose direct rig resampling versus landm
 Read `references/resolution-and-upscaling.md` before selecting output sizes. Clean source mattes first, compare source detail with projected display pixels at the intended DPR, and inspect extreme poses at native close-up size. `scripts/assess_resolution.py` checks sampling, aspect, gutters, texture limits and RGBA8 mip memory; run it with `--self-test` to verify the helper.
 
 Run `python scripts/self_test_morph_sequence.py` for endpoint, seam, timing, invalid-mesh and overwrite-protection tests. Run `python scripts/self_test.py` for meaningful geometry/attachment failures, and `python scripts/self_test_final_frame_analysis.py --output-dir <temporary-directory>` for stale/partial evidence rejection. Use `scripts/audit_final_frame_analysis.py --help` and `scripts/painted_walk.py --help` for their contracts.
+
+Run `node --test tests/paired-gaussian.test.mjs tests/paired-gaussian-anchor.test.mjs` and `python -m unittest discover -s tests -p test_paired_gaussian_builder.py` for the paired Gaussian starter. The host supplies its existing Three instance and locally pinned Spark runtime; no second render loop or remote module is added.
 
 Character artwork and project-specific evidence stay in the game project. This repository contains the reusable skill, not its desktop companion or game assets.

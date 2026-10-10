@@ -31,6 +31,26 @@ For a camera-sensitive beat, block a few rough or existing-sprite snapshots at t
 
 An action can wait for a walk-cycle boundary to stop, but a dramatic approach may need a precise arrival distance. In either case, encode who owns the character until the scene releases it. A route pause, player interaction, or queue call must not replace a higher-priority beat halfway through. Once released, choose a reachable route point and resume without teleporting or trapping the actor in a gesture frame.
 
+For a short interaction that should end by itself, let the existing scene owner
+run entry → actual speech → authored hold → release → recovery. Do not add a
+popup, return button or a second timer to finish a purely in-scene performance.
+Bind pending continuations to both the attempt/generation and the current speech
+cue. If speech is missing, use the existing readable-caption fallback; pause and
+hidden time must freeze it too. A stale end callback from a cancelled line must
+not release the next encounter. Consecutive lines can carry the current effect
+strength and scene time, avoiding a flash back to the ordinary room between
+cues, while body motion continues to its safe main anchor.
+
+Choose manual and automatic triggers explicitly per character. In the Bürgeramt
+example, ordinary speakers require E or its touch equivalent; the Aktenkurier
+alone approaches automatically once per visit, only with a clear route and no
+competing foreground performance. These are that scene's authored rules, not
+defaults for all animations. Smooth liquid body transitions use the
+[paired Gaussian action method](paired-gaussian-actions.md); environmental
+distortion may use the host's existing effect pass while protecting the complete
+projected actor bounds. Restore each changed material's authored opacity,
+transparency and depth state on completion and cancellation.
+
 ## Example: the Bürgeramt Aktenkurier
 
 The player enters the office; the Aktenkurier leaves his paperwork loop, walks up and stops near the player. An in-world spotlight remains on him while the room falls nearly black, an eerie iridescent tone fades in, and the visible German line reads: **“Wer die Finsternis sieht, hat sie selbst gewählt!”** He holds the stare briefly; light and sound fade, then he finds his route and returns to work while the game continues. The beat owns the actor and pauses the queue clock during the blackout. It uses the established subtitle rail, not a new popup. A one-shot guard prevents retriggering on the same visit. Replay and close cancel the tone and clear the beat.

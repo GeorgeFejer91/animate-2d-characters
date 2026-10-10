@@ -30,6 +30,12 @@ sampling does not prove endpoint coverage or anatomical correspondence; inspect
 the entire arc and repair uncovered or incorrect parts before promotion.
 Its bounded spatial phase delay creates liquid transport while returning
 exactly to each authored key; owned props share a pivot-derived phase.
+Use that reference's [flicker diagnosis](paired-gaussian-actions.md#diagnose-flicker-before-changing-the-look)
+for rapid transitions, wrong part correspondence, incomplete native coverage,
+cross-actor shader caching or late image handovers. A depth reveal may crossfade
+representations once; a liquid 2D action keeps native texture transport active
+throughout every available anchor pair. Do not copy reveal fades into every
+intermediate action key.
 
 ## Register the actual displayed pose
 
