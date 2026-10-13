@@ -17,6 +17,12 @@ registration; audio and body motion can continue without projecting frontal lips
 onto that view. Specify normal completion, interruption and voice failure in the
 existing interaction contract.
 
+Trace foreground and ambient speech separately. An interaction may plant the
+character while spontaneous lines leave its walk or reaction running. Register
+the actual front/profile walking sources and displayed samples when those lines
+can occur; a standing-pose fixture cannot establish their coverage. Keep rear or
+fully hidden mouths explicitly absent.
+
 For a partially visible mouth behind paper or another prop, transport a
 visible-mouth/occluder mask with the source paint, or use the existing prop depth
 and part ownership to protect the occluder. Clip both oral fill and skin transport
@@ -49,6 +55,12 @@ Register it on the exact encoded crop, not on a nearby bridge, an earlier workin
 sheet or nose/chin interpolation. Its source identity and byte hash, crop,
 dimensions, local centre, tangent and normal must travel with its pose. Record a
 deliberate null registration for the no-mouth poses.
+
+Inspect any pre-baked talk frames before treating their dark paint as a source
+cavity. A misplaced fill on the cheek or philtrum is not an oral boundary. If
+the same body/breath sample has approved unbaked paint, select that source at the
+same phase and articulate its fitted lips; do not invent contours around the
+artifact or freeze the body to a different pose.
 
 Fit these controls against enlarged source pixels:
 
@@ -143,6 +155,9 @@ pause/resume, end, cancellation, replay, loading failure and fallback handoff.
 Use real recorded-media playback with its observed playhead, mouth cue, selected
 paint and body phase traced separately. Deliberately held extremes and forced
 body arcs diagnose geometry; they do not establish natural speech performance.
+Let at least one real take reach native completion for each distinct lifecycle
+path; cancelling near its end tests cancellation. For interrupted replay,
+retain callbacks from the interrupted take, not only an already settled take.
 Silent capture can establish visual timeline behavior without claiming heard
 perceptual synchronization. Label forced fixtures versus natural gameplay,
 desktop/mobile emulation versus physical devices, estimated versus verified
