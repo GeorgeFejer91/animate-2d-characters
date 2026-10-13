@@ -170,12 +170,17 @@ so the opening reads as one cavity; sampling from an assumed closed crease can
 leave original teeth or darkness as a second mouth. Register these boundaries
 on every affected source pose, including bridges.
 
-At neutral, sample the exact original source. During speech, preserve original
-alpha and guard samples whose remapped alpha falls below the original, so paint
-cannot pull transparent background into cheeks. Diagnose cheek folding as a
-noninvertible or overly broad width map; diagnose alpha gaps at the remap edge
-before increasing the dark oral fill. Inspect the source crease, attached
-corners, lower-jaw connection and protected eyes on light and dark backgrounds.
+When speech is inactive, sample the exact source, including any painted opening.
+When a voiced closed consonant owns the mouth, compress a pre-open source's
+upper and lower boundaries to the closed line. Keep the outside-paint remap
+bounded and monotonic through this inward compression; adapt its falloff to
+the displacement so it does not fold the cheek or jaw. During speech, preserve
+original alpha and guard samples whose remapped alpha falls below the original,
+so paint cannot pull transparent background into cheeks. Diagnose cheek
+folding as a noninvertible or overly broad map; diagnose alpha gaps at the
+remap edge before increasing the dark oral fill. Inspect inactive source,
+voiced closure, attached corners, lower-jaw connection and protected eyes on
+light and dark backgrounds.
 
 For paired painted endpoints, evaluate the same media cue in each endpoint's
 own registered lip frame *before* the existing body transport mixes them. The
@@ -202,8 +207,9 @@ frontal mouth must not be projected onto a rear view without visible lips.
 For paired native-image Gaussians, articulate each source painting in its own
 registered UV space before the existing paired transport mixes it. Carry its
 head/jaw landmarks, local size and orientation through the same body paths.
-Register the actual lip crease on every encoded key, including bridges, in its
-existing source specification and compiled manifest. Nose/chin interpolation
+Register the actual lip line and any open-source boundaries on every encoded
+key, including bridges, in its existing source specification and compiled
+manifest. Nose/chin interpolation
 does not locate mouths reliably in separately painted keys. Authored key times
 own transport timing, not oral coordinates; filenames such as `bridge1` specify
 neither. Check registrations against enlarged source pixels and full-aperture
