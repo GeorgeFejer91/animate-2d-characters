@@ -129,10 +129,12 @@ Read the native media playhead in the existing render/update pass. Blend closure
 vowel opening, spreading, rounding and lower-lip biting across short boundaries;
 energy can modulate opening but cannot replace articulation. Select recorded-word
 receipt mode before the first word event, so a wall-clock estimate cannot advance
-past and reject that receipt. Freeze the pose during pause; close on actual end,
-exit and replay. Unowned or failed audio should retain a neutral mouth unless a
-separate fallback rig has been validated. Reduced motion can retain these small
-semantic movements while removing decorative waves.
+past and reject that receipt. Hold the sampled mouth cue during media pause;
+preserve the existing body's motion owner and phase. On actual end, cancellation,
+exit or replay, reset and release the speech cue and restore inactive source
+paint, including deliberate open rest art. Unowned or failed audio retains that
+source paint unless a separate fallback rig has been validated. Reduced motion
+can retain these small semantic movements while removing decorative waves.
 
 Register the lips against the exact source crop and its world-coordinate mapping.
 Use a bounded lip/lower-jaw mask that preserves eyes, scalp, props and floor pivot.
@@ -172,6 +174,13 @@ rendering. A black lip crease is not automatically an open cavity, and a red
 upper-lip ridge is not the cavity's upper edge. Preserve asymmetry, downturn,
 visible profile width, restrained jaw range and the source's tooth exposure.
 
+Cover the complete source opening, including teeth, its high upper edge and dark
+corner wings. Compare inactive, owned closed and open samples on the actual
+native painting and each atlas fallback cell. A valid profile can still leave a
+black pocket outside its measured corner or an upper tooth row above its source
+boundary. Recenter or enlarge a registration whose true cavity exceeds its
+coordinate bounds, then refit the controls; do not truncate it to fit the schema.
+
 The audio rig supplies normalized opening, spread, rounding and contact cues;
 the pose's mouth profile converts those cues into its own contours and limits.
 Clamp articulation inside those limits. Do not give every face the same slit,
@@ -198,6 +207,15 @@ folding as a noninvertible or overly broad map; diagnose alpha gaps at the
 remap edge before increasing the dark oral fill. Inspect inactive source,
 owned closure, attached corners, lower-jaw connection and protected eyes on
 light and dark backgrounds.
+
+At the protected-face or collar guard, make displacement return smoothly to
+zero with the sampling map's first derivative returning to identity. A hard
+outside return can still create a visible seam when the adjacent inside sample
+has moved several source pixels. Bound width and biting-contact fields at the
+same guard. Verify positive outside-lip transport through the permitted shape
+range, including owned closure of the largest pre-open source; also inspect the
+skin gradient at the guard. A positive derivative alone cannot approve a bright
+stretched philtrum or a retained cavity.
 
 For paired painted endpoints, evaluate the same media cue in each endpoint's
 own registered lip frame *before* the existing body transport mixes them. The
