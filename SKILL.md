@@ -7,6 +7,8 @@ description: Create or repair painted 2D character movement, interaction poses, 
 
 Use one workflow and one visual acceptance record at two checkpoints. Connected pixels and valid files do not prove good animation.
 
+For a repair, start with the observed symptom in [production lessons](references/germany-simulator-lessons.md), then read only its linked method. Locate the first failing stage: approved source, extraction/registration, deformation/correspondence, encoded export, or actual runtime selection/ownership. Repair that stage before expanding the sequence; keep unresolved coverage explicit.
+
 Before choosing canvas/frame sizes or upscaling, read [resolution and upscaling](references/resolution-and-upscaling.md). Compare actual source detail, export cells and displayed physical pixels (CSS × DPR); inspect extreme poses at native close-up resolution before expanding the sequence. Clean source mattes first, preserve family scale and alpha, and prefer rebaking higher-resolution originals over enlarging a lossy atlas. `scripts/assess_resolution.py` reports sampling ratios, aspect, gutters and texture memory; it does not certify visual quality.
 
 For a **new character that will speak**, read [speech-ready character authoring](references/speech-ready-character-authoring.md) before creating its views or action sheet. Plan visible mouths and speech ownership with the interaction, fit mouth profiles alongside the approved source poses, and prove closure and changing-pose articulation before expanding the family. Reuse the existing body/media owners and the same two-checkpoint visual gate.

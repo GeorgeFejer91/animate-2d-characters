@@ -31,6 +31,12 @@ For a camera-sensitive beat, block a few rough or existing-sprite snapshots at t
 
 An action can wait for a walk-cycle boundary to stop, but a dramatic approach may need a precise arrival distance. In either case, encode who owns the character until the scene releases it. A route pause, player interaction, or queue call must not replace a higher-priority beat halfway through. Once released, choose a reachable route point and resume without teleporting or trapping the actor in a gesture frame.
 
+For a guided walk, bind each spoken beat and gesture to its actual destination, target and arrival receipt. A cycle named `point` does not prove that a hand points at the named car, hedge or house. Inspect the target relationship from the player's following view; supply a distinct pose or describe the action honestly when the artwork only reads as general emphasis. Keep work props appropriate to the task instead of reusing a broom or sponge for unrelated work. A blocked guide must retain the pending destination without walking in place or advancing an arrival-dependent line. Use the host's route recovery rather than an animation-only teleport.
+
+Give each lane its own advancement condition within the existing update loop: resolved distance for gait, active simulation time for idle/action, and the current media owner's playhead for recorded speech. Check overlays, case files and hidden-tab pause as well as ordinary pause; a stationary idle must not keep running through a paused scene. Speech and body pause behavior follows the host contract and must remain coherent on resume.
+
+Block the performance with the actual HUD and dialogue controls visible in desktop and phone portrait/landscape views. A correct gesture hidden behind a conversation panel has not communicated its beat. Check the complete projected speaker and gesture/prop extent; adjust existing layout or camera framing where needed, then recheck ordinary occlusion and restore camera ownership after the interaction.
+
 For a short interaction that should end by itself, let the existing scene owner
 run entry → actual speech → authored hold → release → recovery. Do not add a
 popup, return button or a second timer to finish a purely in-scene performance.

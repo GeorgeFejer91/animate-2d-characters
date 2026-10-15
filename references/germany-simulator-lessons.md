@@ -1,5 +1,32 @@
 # Germany Simulator lessons
 
+Use these cases to select a repair, not as a universal art style or claim that a new character has passed. Earlier vacation-character repairs and later office/neighbor work have different accepted assets and coverage. Diagnose the actual consumer before reusing an old recipe.
+
+## Later production failures: faces, gestures and speaking in motion
+
+Reviewed on 2026-10-15 against the recorded animation conversations, neighbor source notes and builder, city style authority and project session notes. This review updates instructions; it does not rerun or inherit those animations' visual acceptance.
+
+| Observed problem | Reusable correction and its limit |
+| --- | --- |
+| Inga's separate eye/mouth expression patches distorted the face | Repaint one coherent face against her approved identity; preserve registration, hair/body/alpha, then rebuild only affected variants. See [expression repair](methods.md). The recorded repair passed its scoped source/export and browser review; that does not approve later facial edits. |
+| A raised arm left an angular shoulder flap or captured apron/torso fragments | Fit the sleeve/hand contour, retain shoulder overlap and restore concealed torso paint separately. Inspect crossing and recovery. See [arm gesture repair](methods.md). The current builder records these corrections; later action changes still need their own final-frame review. |
+| A story requested pointing or a specific chore, but the clip only showed generic emphasis or a different tool | Check the visible action against its target and verb. Author missing extremes or retain the appropriate existing representation. A semantic clip name is not visual proof. See [narrative action rigging](narrative-action-rigging.md). |
+| Landscape dialogue buttons covered the active speaker and gestures | Test the performance with the real controls visible, move existing controls or adjust owned camera framing, and verify release/depth behavior. Source sheets alone missed this defect. |
+| An idle clock kept advancing while a case-file overlay paused gameplay | Freeze simulation-owned idle/action as well as distance-driven gait. Check overlays and hidden/resume; retain the media owner's distinct speech lifecycle. |
+| A correct painted neighbor switched to a procedural figure during work | Audit actual per-state renderer selection. Retain the approved representation where it supports that action, and keep any alternate work/failure representation explicit. Do not make all work states use the wrong painted tool merely to avoid a switch. |
+| Standing mouth fixtures passed while ambient walking speech had no mouth registration | Inventory real speech producers and moving source cells; fit visible front/profile paintings and transport their registrations. Rear/hidden mouths remain explicitly absent. The office repair covered walking sources; it did not supply city-wide mouth rigs. |
+| Old baked talk frames placed a dark opening beside the real lips | Use the matching approved unbaked source at the same body/breath phase and refit its actual mouth. Do not register an accidental cheek cavity or freeze the body on a different talk frame. |
+| Mouth geometry checks passed while the whole face still smeared between body keys | Keep mouth attachment, facial correspondence and natural speech performance as separate observations in the same review. Repair correspondence/bridges before accepting a clean facial morph; lip correctness cannot waive existing softness. |
+| A fallback-atlas test still selected detail paint; equal image heights hid the error | Trace the actual selected variant, URL/hash and cell. Exercise natural selectors, then explicit fallback. See [consumer evidence](final-frame-analysis.md) and [resolution diagnosis](resolution-and-upscaling.md). |
+| A completion check sampled before cleanup, or a missing-audio test failed to block a hashed URL | Repair the fixture and rerun the real lifecycle. Distinguish native completion, cancellation and stale callbacks; establish the host's actual browser-speech/caption policy before asserting it. See [speech-ready authoring](speech-ready-character-authoring.md). |
+| New city sources used realistic proportions inconsistent with established miniatures | Resolve the destination's style authority before generation; compare equivalent views at one figure height and keep the character's own head/body proportions through turns. Germany Simulator's compact style is project-specific, not a universal skeleton. |
+
+Current neighbor source notes deliberately limit registered lip motion to supported front-facing sources; rear/profile, adult chore and face-occluding call poses retain source paint. That is incomplete directional articulation, not full walk-and-talk lip-sync. The office mouth audit also reported pre-existing facial blending softness. Keep those limitations visible until their own repairs pass. Browser emulation and silently observed media timing do not establish physical-device performance or heard synchronization.
+
+The source trail is `assets/sprite-sources/neighbors/README.md`, `tools/build-neighbor-sprites.py`, `For-AI/CITY-CHARACTER-STYLE.md` and `docs/engineering/SESSION.md` in Germany Simulator, plus the local conversations “Assess 4DGS for 2D animations” and “Add Anmeldung badge and neighbors.” These locate the case history; another project can use the linked methods without those files. Consult current authorities because the live project can change after this review.
+
+## Earlier vacation-character repairs
+
 The observed loader used archived `crowd-towel-man.png` and `crowd-towel-woman.png`, 32×3 cells with front view in row1. Recheck loaded assets next time: experimental references initially supplied the wrong view.
 
 Man: straw hat, sunglasses/moustache, blue polo, khaki shorts, white socks over toes, brown sandals, blue towel/yellow band. Woman: grey curls/visor, coral jacket, white shirt, khaki shorts, white socks over toes, dark sandals, red/white towel. Towels stay under the anatomical right arm. The user approved local storage and source-pixel/manual alternatives for this session; those are not standing workflow exceptions.

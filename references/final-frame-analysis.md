@@ -16,6 +16,10 @@ For a contact or one-shot transition, inspect consecutive exact frames around en
 
 A source mismatch, a reported incongruity, an unresolved finding or “pass with qualification” blocks acceptance. Reopen the relevant prior pass instead of arguing that numeric results prove the user's observation wrong. Analyze the smallest failing surface and rebuild its final frames/previews. Preserve unaffected approved rows.
 
+Scope runtime evidence by the representations and states actually used: character, facing, action, speech mode, native/detail or atlas fallback, and viewport/DPR where these differ. Exercise real selectors before forcing diagnostic poses. Record the loaded asset URL/hash and selected cell/clip; equal texture dimensions, a `ready` flag or a filename alone cannot identify the tested variant. Check work/idle as well as conversations: a correct sprite can be replaced by an unrelated procedural figure in only one state. Verify missing-asset recovery separately from ordinary rendering.
+
+For speech, standing front-view fixtures do not cover ambient walking, profile, occluded mouths or pre-baked talk frames. A passing mouth-position check does not approve whole-face correspondence or remove existing facial smear. Record deliberate no-mouth/source-paint fallbacks and unsupported views explicitly. Reuse [speech-ready authoring](speech-ready-character-authoring.md) for the pose and media lifecycle matrix. Let real media reach native completion when claiming completion coverage, and retain interrupted callbacks when testing stale-owner rejection. A failed request interception or sampling before cleanup completes is a harness defect to repair and rerun, not evidence that the production fallback works.
+
 ## Provenance helper
 
 Run `audit_final_frame_analysis.py manifest.json --review review.json --report report.json`. It requires Python, Pillow and NumPy. This gate validates current-image evidence and coverage; it cannot independently decide whether a written visual judgment is honest or accurate.
